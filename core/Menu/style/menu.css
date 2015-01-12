@@ -1,0 +1,18 @@
+.widget.menu, .widget.vertical-menu {overflow: initial;}
+
+nav.menu ul { list-style: none; width: 100%; padding: 0px; display: inline-table; position: relative;}
+nav.menu ul li {float: left; position: relative;}
+nav.menu.vertical ul li {display: block; width: 100%; }
+
+nav.menu ul li a {display: block; padding: 0px 20px; text-decoration: none; color: black;}
+nav.menu ul ul {display: none; position: absolute; top: 100%; left: 0%;}
+nav.menu.vertical ul ul {top: 0%; left: 100%; z-index: 100; background: #EEE;}
+nav.menu ul ul li {float: none; border-top: solid 1px gray; padding: 0px 5px;}
+nav.menu ul ul li a {padding: 0px; }
+nav.menu ul ul ul {position: absolute; left: 100%;  top: 0%;}
+
+nav.menu ul li:hover {background: black; color: white;}
+nav.menu ul li:hover a {color: white; }
+nav.menu ul li:hover > ul {display: block; }
+nav.menu ul li:hover > ul a{color: black;}
+nav.menu ul li:hover > ul li:hover a{color: white;}

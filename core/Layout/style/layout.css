@@ -1,0 +1,24 @@
+.layout {border: dashed 3px blue; background: #AAA}
+#widget_list {clear: left; }
+#widget_list li {clear: left; max-height: 1.3em;}
+#widget_list #layout_menu.ui-menu {width: 150px; font-size: .8em; position: relative; left: 100px; bottom: 50px; z-index: 20;}
+#widget_list button.addTo {margin-left: 30px;}
+.widgets {min-height: 10px; background: #CCC;}
+.widgets .remove {
+	background: url("../images/icon-delete.png"); 
+	display: inline-block; 
+	float: right; 
+	width: 16px; 
+	height: 16px;
+	cursor: pointer;
+}
+.widgets .list {
+	background: url("../images/icon-edit.png"); 
+	display: inline-block; 
+	float: right; 
+	width: 16px; 
+	height: 16px;
+	cursor: pointer;
+}
+#list_menu {font-size: .8em; line-height: 1em;}
+#save_layout {float: right; font-size: 1.2em;}
