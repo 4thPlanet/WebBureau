@@ -92,20 +92,29 @@ class tables extends module {
 	
 	public static function install() {
 		global $db;
-		$query = "CREATE TABLE IF NOT EXISTS _TABLE_INFO (
-			TABLE_NAME varchar(100),
-			SLUG varchar(100) UNIQUE,
-			SHORT_DISPLAY varchar(50),
-			PREVIEW_DISPLAY varchar(500),
-			PREVIEW_DISPLAY_BEFORE varchar(500),
-			PREVIEW_DISPLAY_AFTER varchar(500),
-			FULL_DISPLAY text,
-			LINK_BACK_TO_TABLE bit,
-			ROW_DISPLAY_MAX int,
-			DETAILED_MENU_OPTIONS bit,
-			PRIMARY KEY (TABLE_NAME)
-		);";
+		$query = "
+			CREATE TABLE IF NOT EXISTS _TABLE_INFO (
+				TABLE_NAME varchar(100),
+				SLUG varchar(100) UNIQUE,
+				SHORT_DISPLAY varchar(50),
+				PREVIEW_DISPLAY varchar(500),
+				PREVIEW_DISPLAY_BEFORE varchar(500),
+				PREVIEW_DISPLAY_AFTER varchar(500),
+				FULL_DISPLAY text,
+				LINK_BACK_TO_TABLE bit,
+				ROW_DISPLAY_MAX int,
+				DETAILED_MENU_OPTIONS bit,
+				PRIMARY KEY (TABLE_NAME)
+			)";
 		$db->run_query($query);
+		$query = "
+			CREATE TABLE IF NOT EXISTS _TABLE_METAS (
+				TABLE_NAME varchar(100),
+				META_NAME varchar(100),
+				META_CONTENT text,
+				PRIMARY KEY (TABLE_NAME,META_NAME)
+			)";
+		$db->run_query($query,$params);
 		return true;
 	}
 	
@@ -321,11 +330,6 @@ class tables extends module {
 	}
 	
 	public static function edit_record($table, $id,$data) {
-		if (!empty($_POST)) {
-			return static::edit_record_submit($table,$id,$data,$_POST);
-		}
-
-			
 		global $local, $db;
 		$output = array('html' => '', 'script' => array(
 			"{$local}script/jquery.min.js",
@@ -711,8 +715,10 @@ class tables extends module {
 				return static::delete_record($table,$data);
 		}
 		
-		$query = "SELECT FULL_DISPLAY, IFNULL(LINK_BACK_TO_TABLE,1) AS LINK_BACK_TO_TABLE
-		FROM _TABLE_INFO WHERE TABLE_NAME = ?";
+		$query = "
+			SELECT FULL_DISPLAY, IFNULL(LINK_BACK_TO_TABLE,1) AS LINK_BACK_TO_TABLE
+			FROM _TABLE_INFO 
+			WHERE TABLE_NAME = ?";
 		$params = array(array("type" => "s", "value" => $table));
 		$display = $db->run_query($query,$params);
 		if (empty($display) || empty($display[0]['FULL_DISPLAY'])) {
@@ -735,11 +741,24 @@ class tables extends module {
 			$output['html'] .= replace_formatted_string($display['FULL_DISPLAY'],"{","}",$data);
 		}
 		if ($display['LINK_BACK_TO_TABLE'])
-		$output['html'] .= "
-		<p><a href='".static::get_module_url()."".make_url_safe($table)."/'>Return to $table listing...</a></p>
-		";
-		return $output;		
+			$output['html'] .= "<p><a href='".static::get_module_url()."".make_url_safe($table)."/'>Return to $table listing...</a></p>";
+			
+		/* Now check for any Table METAs */
+		$query = "
+			SELECT *
+			FROM _TABLE_METAS
+			WHERE TABLE_NAME = ?";
+		$params =array(
+			array("type" => "s", "value" => $table)
+		);
+		$metas = $db->run_query($query,$params);
+		if (!empty($metas)) {
+			$output['meta'] = array();
+			foreach($metas as $meta)
+				$output['meta'][$meta['META_NAME']] = replace_formatted_string($meta['META_CONTENT'],"{","}",$data);
 		}
+		return $output;		
+	}
 	
 	public static function ajax($args,$request) {
 		switch($request['ajax']) {
