@@ -604,20 +604,44 @@ Regards,
 		$rights = array(
 			'Users' => array(
 				'Widget' => array(
-					'Login' => 'Allows the user to login.',
-					'Welcome' => 'Displays a welcome message to the user.'
+					'Login' => array(
+						'description' => 'Allows the user to login.',
+						'default_groups' => array('Guest')
+					),
+					'Welcome' => array(
+						'description' => 'Displays a welcome message to the user.',
+						'default_groups' => array('Registered User','Admin')
+					)
 				),
 				'Action' => array(
-					'Register Self' => 'Allows a user to register themselves.',
-					'Register Others' => 'Allows a user to register others.'
+					'Register Self' => array(
+						'description' => 'Allows a user to register themselves.',
+						'default_groups' => array('Guest')
+					),
+					'Register Others' => array(
+						'description' => 'Allows a user to register others.',
+						'default_groups' => array('Admin')
+					)
 				),
 				'Rights' => array(
-					'Create Rights' => 'Allows a user to create user rights.',
-					'Assign Rights' => 'Allows a user to assign user rights.'
+					'Create Rights' => array(
+						'description' => 'Allows a user to create user rights.',
+						'default_groups' => array('Admin')
+					),
+					'Assign Rights' => array(
+						'description' => 'Allows a user to assign user rights.',
+						'default_groups' => array('Admin')
+					)
 				),
 				'View' => array(
-					'View Users' => 'Allows a user to view User module, as well as individual user information.',
-					'View Users\' Email' => 'Allows a user to view another user\'s email address.'
+					'View Users' => array(
+						'description' => 'Allows a user to view User module, as well as individual user information.',
+						'default_groups' => array('Registered User','Admin')
+					),
+					'View Users\' Email' => array(
+						'description' => 'Allows a user to view another user\'s email address.',
+						'default_groups' => array('Admin')
+					)
 				)
 			));
 
@@ -625,7 +649,10 @@ Regards,
 		$query = "SELECT NAME FROM _GROUPS";
 		$groups = group_numeric_by_key($db->run_query($query),'NAME');
 		foreach($groups as $group)
-			$rights['Users']['Groups']["View $group"] = "Allows a user to view the $group group.";
+			$rights['Users']['Groups']["View $group"] = array(
+				'description' => "Allows a user to view the $group group.",
+				'default_groups' => array('Guest','Registered User','Admin')
+			);
 		return $rights;
 	}
 	
@@ -663,13 +690,6 @@ Regards,
 		) tmp
 		LEFT JOIN _GROUPS G ON tmp.NAME = G.NAME
 		WHERE G.ID IS NULL;";
-		$query[] = "CREATE TABLE IF NOT EXISTS _USERS_GROUPS (
-			USER_ID int,
-			GROUP_ID int,
-			PRIMARY KEY (USER_ID,GROUP_ID),
-			FOREIGN KEY (USER_ID) REFERENCES _USERS(ID),
-			FOREIGN KEY (GROUP_ID) REFERENCES _GROUPS(ID)
-		);";
 		$query[] = "CREATE TABLE IF NOT EXISTS _RIGHT_TYPES (
 			ID int AUTO_INCREMENT,
 			MODULE_ID int,
@@ -685,6 +705,13 @@ Regards,
 			PRIMARY KEY (ID),
 			FOREIGN KEY (RIGHT_TYPE_ID) REFERENCES _RIGHT_TYPES(ID)
 		)";
+		$query[] = "CREATE TABLE IF NOT EXISTS _USERS_GROUPS (
+			USER_ID int,
+			GROUP_ID int,
+			PRIMARY KEY (USER_ID,GROUP_ID),
+			FOREIGN KEY (USER_ID) REFERENCES _USERS(ID),
+			FOREIGN KEY (GROUP_ID) REFERENCES _GROUPS(ID)
+		);";
 		$query[] = "CREATE TABLE IF NOT EXISTS _GROUPS_RIGHTS (
 			GROUP_ID int,
 			RIGHT_ID int,
@@ -695,16 +722,6 @@ Regards,
 		foreach($query as $q) $db->run_query($q); 
 		$db->trigger('register_time','BEFORE INSERT','_USERS','SET NEW.REGISTER_DATE = IFNULL(NEW.REGISTER_DATE,NOW())');
 		
-		/* Create the actual module record... */
-		$query = "INSERT INTO _MODULES (NAME, DESCRIPTION, IS_CORE, FILENAME, CLASS_NAME)
-			SELECT tmp.NAME, tmp.DESCRIPTION, tmp.IS_CORE, ?, tmp.CLASS_NAME
-			FROM (SELECT 'Users' as NAME,'Handles users, groups and rights' as DESCRIPTION,1 as IS_CORE,'users' as CLASS_NAME) tmp
-			LEFT JOIN _MODULES M ON tmp.NAME = M.NAME
-			WHERE M.ID IS NULL";
-		$params = array(
-			array("type" => "s", "value" => __FILE__)
-		);
-		$db->run_query($query,$params);
 		/* Add to the _WIDGETS table RIGHT_ID (if necessary)*/
 		$query = "SELECT CASE COUNT(*) WHEN 0 THEN 0 ELSE 1 END AS COLUMN_EXISTS
 		FROM INFORMATION_SCHEMA.COLUMNS
@@ -716,347 +733,19 @@ Regards,
 		);
 		$column_exists = $db->run_query($query,$params)[0]['COLUMN_EXISTS'];
 		if (!$column_exists) {
-			$query = "ALTER TABLE _WIDGETS
-			ADD RIGHT_ID int,
-			ADD FOREIGN KEY (RIGHT_ID) REFERENCES _RIGHTS(ID)";
+			$query = "
+				ALTER TABLE _WIDGETS
+				ADD RIGHT_ID int,
+				ADD FOREIGN KEY (RIGHT_ID) REFERENCES _RIGHTS(ID)";
 			$db->run_query($query);
 		}
 		
-		/* Create the Right Type and rights we will need... */
-		$query = "INSERT INTO _RIGHT_TYPES (MODULE_ID, NAME)
-		SELECT M.ID, 'Widget'
-		FROM _MODULES M 
-		LEFT JOIN _RIGHT_TYPES RT ON 
-			RT.MODULE_ID = M.ID AND
-			RT.NAME = 'Widget'
-		WHERE M.NAME = ? AND RT.ID IS NULL";
-		$params = array(
-			array("type" => "s", "value" => "Users")
-		);
-		$db->run_query($query,$params);
-		$query = "";
-
-		$query = "INSERT INTO _RIGHTS (RIGHT_TYPE_ID, NAME, DESCRIPTION)
-		SELECT RT.ID, tmp.NAME, tmp.DESCRIPTION
-		FROM _MODULES M
-		JOIN _RIGHT_TYPES RT ON M.ID = RT.MODULE_ID
-		JOIN (SELECT 'Login' as NAME, 'Allows the user to login.' as DESCRIPTION UNION
-		SELECT 'Welcome' as NAME, 'Displays a welcome message to the user.' as DESCRIPTION) tmp ON 1=1
-		LEFT JOIN _RIGHTS R ON 
-			RT.ID = R.RIGHT_TYPE_ID AND
-			tmp.NAME = R.NAME
-		WHERE M.NAME = ? AND R.ID IS NULL";
-		$db->run_query($query,$params);
-		
-		/* Insert the widget group rights... */
-		$query = "INSERT INTO _GROUPS_RIGHTS (GROUP_ID, RIGHT_ID)
-		SELECT G.ID, R.ID
-		FROM _GROUPS G 
-		JOIN _MODULES M ON M.NAME = ?
-		JOIN _RIGHT_TYPES RT ON M.ID = RT.MODULE_ID AND RT.NAME = ?
-		JOIN _RIGHTS R ON RT.ID = R.RIGHT_TYPE_ID AND R.NAME = ?
-		LEFT JOIN _GROUPS_RIGHTS GR ON 
-			G.ID = GR.GROUP_ID AND
-			R.ID = GR.RIGHT_ID
-		WHERE G.NAME = ? AND GR.GROUP_ID IS NULL
-		UNION
-		SELECT G.ID, R.ID
-		FROM _GROUPS G 
-		JOIN _MODULES M ON M.NAME = ?
-		JOIN _RIGHT_TYPES RT ON M.ID = RT.MODULE_ID AND RT.NAME = ?
-		JOIN _RIGHTS R ON RT.ID = R.RIGHT_TYPE_ID AND R.NAME = ?
-		LEFT JOIN _GROUPS_RIGHTS GR ON 
-			G.ID = GR.GROUP_ID AND
-			R.ID = GR.RIGHT_ID
-		WHERE G.NAME IN (?,?) AND GR.GROUP_ID IS NULL";
-		$params = array(
-			array("type" => "s", "value" => 'Users'),
-			array("type" => "s", "value" => 'Widget'),
-			array("type" => "s", "value" => 'Login'),
-			array("type" => "s", "value" => 'Guest'),
-			array("type" => "s", "value" => 'Users'),
-			array("type" => "s", "value" => 'Widget'),
-			array("type" => "s", "value" => 'Welcome'),
-			array("type" => "s", "value" => 'Admin'),
-			array("type" => "s", "value" => 'Registered User')
-		);
-		$db->run_query($query,$params);
-
 		/* Create the widget records... */
-		require_once('Login.Widget.php');
+		require_once(__DIR__ . '/Login.Widget.php');
 		login_widget::install();
-		require_once('Welcome.Widget.php');
+		require_once(__DIR__ . '/Welcome.Widget.php');
 		welcome_widget::install();
-		
-/*		
-		$query = "INSERT INTO _WIDGETS (MODULE_ID, NAME, FILENAME, CLASS_NAME, RIGHT_ID)
-		SELECT M.ID, F.NAME, CONCAT(?,'/',F.filename), F.CLASS_NAME, R.ID
-		FROM _MODULES M 
-		JOIN (
-			SELECT 'Login' as NAME, 'Login.Widget.php' as FILENAME, 'login_widget' as CLASS_NAME UNION
-			SELECT 'Welcome' as NAME, 'Welcome.Widget.php' as FILENAME, 'welcome_widget' as CLASS_NAME) F ON 1=1
-		JOIN _RIGHT_TYPES RT ON
-			M.ID = RT.MODULE_ID AND
-			RT.NAME = ?
-		JOIN _RIGHTS R ON
-			RT.ID = R.RIGHT_TYPE_ID AND
-			F.NAME = R.NAME
-		LEFT JOIN _WIDGETS W ON 
-			M.ID = W.MODULE_ID AND
-			F.NAME = W.NAME
-		WHERE M.NAME = 'Users' AND W.ID IS NULL";
-		$params = array(
-			array("type" => "s", "value" => __DIR__),
-			array("type" => "s", "value" => "Widget")
-		);
-		$db->run_query($query,$params);
-*/		
-		/* Create an action right type */
-		
-		$query = "INSERT INTO _RIGHT_TYPES (MODULE_ID, NAME)
-		SELECT M.ID, ?
-		FROM _MODULES M
-		LEFT JOIN _RIGHT_TYPES RT ON 
-			M.ID = RT.MODULE_ID AND
-			RT.NAME = ?
-		WHERE M.NAME = ? AND RT.ID IS NULL";
-		$params = array(
-			array("type" => "s", "value" => "Action"),
-			array("type" => "s", "value" => "Action"),
-			array("type" => "s", "value" => "Users")
-		);
-		$db->run_query($query,$params);
-		$rt = $db->get_inserted_id();
-		
-		/* Now insert the rights for all of our actions... */
-		$query = "INSERT INTO _RIGHTS (RIGHT_TYPE_ID, NAME, DESCRIPTION)
-		SELECT tmp.RIGHT_TYPE_ID, tmp.NAME, tmp.DESCRIPTION
-		FROM (
-			SELECT *
-			FROM (SELECT $rt AS RIGHT_TYPE_ID) A
-			JOIN (SELECT 'Register Self' as NAME, 'Allows a user to register themselves.' as DESCRIPTION
-			UNION SELECT 'Register Others' as NAME, 'Allows a user to register others.' as DESCRIPTION) B ON 1=1
-		) tmp
-		LEFT JOIN _RIGHTS R ON
-			R.RIGHT_TYPE_ID = tmp.RIGHT_TYPE_ID AND
-			R.NAME = tmp.NAME
-		WHERE R.ID IS NULL";
-		$db->run_query($query);
-		/* Give the 'Register Self' right to Guests, 'Register Others' right to Admins... */
-		
-		$query = "INSERT INTO _GROUPS_RIGHTS (GROUP_ID, RIGHT_ID)
-		SELECT G.ID, R.ID
-		FROM _GROUPS G
-		JOIN _RIGHTS R ON
-			R.RIGHT_TYPE_ID = ? AND
-			R.NAME = CASE G.NAME WHEN 'Guest' THEN ? WHEN 'Admin' THEN ? END
-		LEFT JOIN _GROUPS_RIGHTS GR ON
-			GR.GROUP_ID = G.ID AND
-			GR.RIGHT_ID = R.ID
-		WHERE GR.GROUP_ID IS NULL";
-		$params = array(
-			array("type" => "i", "value" => $rt),
-			array("type" => "s", "value" => 'Register Self'),
-			array("type" => "s", "value" => 'Register Others')
-		);
-		$db->run_query($query,$params);
-		
-		/* Create the "Rights" Right Type */
-		$query = "
-			INSERT INTO _RIGHT_TYPES (MODULE_ID,NAME)
-			SELECT M.ID, ?
-			FROM _MODULES M 
-			LEFT JOIN _RIGHT_TYPES T ON M.ID = T.MODULE_ID AND T.NAME = ?
-			WHERE M.NAME = ? AND T.ID IS NULL";
-		$params = array(
-			array("type" => "s", "value" => "Rights"),
-			array("type" => "s", "value" => "Rights"),
-			array("type" => "s", "value" => "Users"),
-		);
-		$db->run_query($query,$params);
-		
-		/* Create the "Create" and "Assign" Rights */
-		$query = "
-			INSERT INTO _RIGHTS (RIGHT_TYPE_ID, NAME, DESCRIPTION)
-			SELECT T.ID, tmp.NAME, tmp.DESCRIPTION
-			FROM _MODULES M
-			JOIN _RIGHT_TYPES T ON M.ID = T.MODULE_ID
-			JOIN (
-				SELECT 'Create Rights' as NAME, 'Allows a user to create user rights.' as DESCRIPTION UNION
-				SELECT 'Assign Rights' as NAME, 'Allows a user to assign user rights.' as DESCRIPTION
-			) tmp ON 1=1
-			LEFT JOIN _RIGHTS R ON
-				R.RIGHT_TYPE_ID = T.ID AND
-				R.NAME = tmp.NAME
-			WHERE 
-				M.NAME = ? AND
-				T.NAME = ? AND
-				R.ID IS NULL";
-		$params = array(
-			array("type" => "s", "value" => "Users"),
-			array("type" => "s", "value" => "Rights")
-		);
-		$db->run_query($query,$params);
-
-		/* Grant the User Rights Rights to Admin Group */
-		$query = "
-			INSERT INTO _GROUPS_RIGHTS (GROUP_ID, RIGHT_ID)
-			SELECT G.ID, R.ID
-			FROM _MODULES M
-			JOIN _RIGHT_TYPES T ON M.ID = T.MODULE_ID
-			JOIN _RIGHTS R ON T.ID = R.RIGHT_TYPE_ID
-			JOIN _GROUPS G ON G.NAME = ?
-			LEFT JOIN _GROUPS_RIGHTS GR ON 
-				G.ID = GR.GROUP_ID AND
-				R.ID = GR.RIGHT_ID
-			WHERE 
-				M.NAME = ? AND
-				T.NAME = ? AND
-				GR.GROUP_ID IS NULL";
-		$params = array(
-			array("type" => "s", "value" => "Admin"),
-			array("type" => "s", "value" => "Users"),
-			array("type" => "s", "value" => "Rights")
-		);
-		$db->run_query($query,$params);
-		
-		/* Create the View Right Type */
-		$query = "
-			INSERT INTO _RIGHT_TYPES (MODULE_ID,NAME)
-			SELECT M.ID, ?
-			FROM _MODULES M
-			LEFT JOIN _RIGHT_TYPES T ON M.ID = T.MODULE_ID AND T.NAME = ?
-			WHERE M.NAME = ? AND T.ID IS NULL";
-		$params = array(
-			array("type" => "s", "value" => "View"),
-			array("type" => "s", "value" => "View"),
-			array("type" => "s", "value" => "Users")
-		);
-		$db->run_query($query,$params);
-		
-		/* Create the Users/View/User Right */
-		$query = "
-			INSERT INTO _RIGHTS (RIGHT_TYPE_ID, NAME, DESCRIPTION)
-			SELECT T.ID, 'View Users','Allows User to view registered users.'
-			FROM _MODULES M
-			JOIN _RIGHT_TYPES T ON M.ID = T.MODULE_ID
-			LEFT JOIN _RIGHTS R ON T.ID = R.RIGHT_TYPE_ID AND R.NAME = ?
-			WHERE M.NAME = ? AND T.NAME = ? AND R.ID IS NULL";
-		$params = array(
-			array("type" => "s", "value" => "View Users"),
-			array("type" => "s", "value" => "Users"),
-			array("type" => "s", "value" => "View")
-		);
-		$db->run_query($query,$params);
-		
-		/* Assign Users/View/User Right to Admins and Registered Guests */
-		$query = "
-			INSERT INTO _GROUPS_RIGHTS (GROUP_ID,RIGHT_ID)
-			SELECT G.ID, R.ID
-			FROM _GROUPS G
-			JOIN _MODULES M ON M.NAME = ?
-			JOIN _RIGHT_TYPES T ON M.ID = T.MODULE_ID AND T.NAME = ?
-			JOIN _RIGHTS R ON T.ID = R.RIGHT_TYPE_ID AND R.NAME = ?
-			WHERE G.NAME IN ('Admin','Registered User')";
-		$params = array(
-			array("type" => "s", "value" => "Users"),
-			array("type" => "s", "value" => "View"),
-			array("type" => "s", "value" => "View Users")
-		);
-		$db->run_query($query,$params);
-		
-		/* Create the Users/View/Users' Email Right */
-		$query = "
-			INSERT INTO _RIGHTS (RIGHT_TYPE_ID, NAME, DESCRIPTION)
-			SELECT T.ID, 'View Users\' Email','Allows User to view registered users\' email.'
-			FROM _MODULES M
-			JOIN _RIGHT_TYPES T ON M.ID = T.MODULE_ID
-			LEFT JOIN _RIGHTS R ON T.ID = R.RIGHT_TYPE_ID AND R.NAME = ?
-			WHERE M.NAME = ? AND T.NAME = ? AND R.ID IS NULL";
-		$params = array(
-			array("type" => "s", "value" => "View Users' Email"),
-			array("type" => "s", "value" => "Users"),
-			array("type" => "s", "value" => "View")
-		);
-		$db->run_query($query,$params);
-		
-		/* Assign Users/View/Users' Email Right to Admins */
-		$query = "
-			INSERT INTO _GROUPS_RIGHTS (GROUP_ID,RIGHT_ID)
-			SELECT G.ID, R.ID
-			FROM _GROUPS G
-			JOIN _MODULES M ON M.NAME = ?
-			JOIN _RIGHT_TYPES T ON M.ID = T.MODULE_ID AND T.NAME = ?
-			JOIN _RIGHTS R ON T.ID = R.RIGHT_TYPE_ID AND R.NAME = ?
-			WHERE G.NAME IN ('Admin')";
-		$params = array(
-			array("type" => "s", "value" => "Users"),
-			array("type" => "s", "value" => "View"),
-			array("type" => "s", "value" => "View Users' Email")
-		);
-		$db->run_query($query,$params);
-		
-		/* Create the Groups Right Type */
-		$query = "
-			INSERT INTO _RIGHT_TYPES (MODULE_ID,NAME)
-			SELECT M.ID, ?
-			FROM _MODULES M
-			LEFT JOIN _RIGHT_TYPES T ON M.ID = T.MODULE_ID AND T.NAME = ?
-			WHERE M.NAME = ? AND T.ID IS NULL";
-		$params = array(
-			array("type" => "s", "value" => "Groups"),
-			array("type" => "s", "value" => "Groups"),
-			array("type" => "s", "value" => "Users")
-		);
-		$db->run_query($query,$params);
-		
-		/* Create the Users/Groups/View <Group> Right for each group */
-		$query = "
-			INSERT INTO _RIGHTS (RIGHT_TYPE_ID, NAME, DESCRIPTION)
-			SELECT T.ID, CONCAT('View ',G.NAME),CONCAT('Allows User to view the ',G.NAME,' group.')
-			FROM _MODULES M
-			JOIN _RIGHT_TYPES T ON M.ID = T.MODULE_ID
-			JOIN _GROUPS G ON 1=1
-			LEFT JOIN _RIGHTS R ON T.ID = R.RIGHT_TYPE_ID AND R.NAME = CONCAT('View ',G.NAME)
-			WHERE M.NAME = ? AND T.NAME = ? AND R.ID IS NULL";
-		$params = array(
-			array("type" => "s", "value" => "Users"),
-			array("type" => "s", "value" => "Groups")
-		);
-		$db->run_query($query,$params);
-		
-		/* Assign Users/Groups/View Admin to All, /View Registered User to Admins and Registered Users */
-		$query = "
-			INSERT INTO _GROUPS_RIGHTS (GROUP_ID,RIGHT_ID)
-			SELECT G.ID, R.ID
-			FROM _GROUPS G
-			JOIN _MODULES M ON M.NAME = ?
-			JOIN _RIGHT_TYPES T ON M.ID = T.MODULE_ID AND T.NAME = ?
-			JOIN _RIGHTS R ON T.ID = R.RIGHT_TYPE_ID AND R.NAME = ?";
-		$params = array(
-			array("type" => "s", "value" => "Users"),
-			array("type" => "s", "value" => "Groups"),
-			array("type" => "s", "value" => "View Admin")
-		);
-		$db->run_query($query,$params);
-		
-		$query = "
-			INSERT INTO _GROUPS_RIGHTS (GROUP_ID,RIGHT_ID)
-			SELECT G.ID, R.ID
-			FROM _GROUPS G
-			JOIN _MODULES M ON M.NAME = ?
-			JOIN _RIGHT_TYPES T ON M.ID = T.MODULE_ID AND T.NAME = ?
-			JOIN _RIGHTS R ON T.ID = R.RIGHT_TYPE_ID AND R.NAME = ?
-			WHERE G.NAME IN (?,?)";
-		$params = array(
-			array("type" => "s", "value" => "Users"),
-			array("type" => "s", "value" => "Groups"),
-			array("type" => "s", "value" => "View Registered User"),
-			array("type" => "s", "value" => "Admin"),
-			array("type" => "s", "value" => "Registered User"),
-		);
-		$db->run_query($query,$params);
-		
+	
 		return true;
 	}
 	 
@@ -1077,11 +766,11 @@ Regards,
 		 else return $right[0]['ID'];
 	 }
 	
-	public static function create_right($module,$type,$name,$description) {
+	public static function create_right($module,$type,$name,$description,$super=false) {
 		global $db;
 		if (empty($module) || empty($type) || empty($name)) return false;
 		$u = users::get_session_user();
-		if (!$u->check_right('Users','Rights','Create Rights')) return false;
+		if (!$u->check_right('Users','Rights','Create Rights') && !$super) return false;
 		/* First check if $type exists... */
 		$query = "
 			SELECT T.ID as type_id
@@ -1120,10 +809,10 @@ Regards,
 		return $db->get_inserted_id();
 	}
 	
-	public static function assign_rights($rights) {
+	public static function assign_rights($rights,$super=false) {
 		global $local, $db;
 		$user = static::get_session_user();
-		if (!$user->check_right('Users','Rights','Assign Rights')) return false;
+		if (!$user->check_right('Users','Rights','Assign Rights') && !$super) return false;
 		$query = "INSERT INTO _GROUPS_RIGHTS (GROUP_ID, RIGHT_ID) VALUES (?,?)";
 		$errors = array();
 		foreach($rights as $right_id=>$groups) {
@@ -1542,7 +1231,7 @@ Regards,
 		$args = func_get_args();
 		$action = array_shift($args);
 		switch($action) {
-			case 'login' : return login_widget::login();
+			case 'login' : return login_widget::view();
 			case 'logout' : return static::logout();
 			case 'register': return static::register();
 			case '': return static::view_all_users();

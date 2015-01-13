@@ -9,6 +9,7 @@ class modules extends module {
 	
 	/* What to do on post requests... */
 	public static function post($args,$request) {
+		global $db,$local_dir;
 		$user = users::get_session_user();
 		if (!$user->check_right('Modules','Administer','Administer Modules')) return false;
 		if (empty($args)) {
@@ -16,25 +17,33 @@ class modules extends module {
 			$success = true;
 			if ($zip->open($_FILES['module_upload']['tmp_name']) === TRUE) {
 				$folder_name = substr($_FILES['module_upload']['name'],0,strrpos($_FILES['module_upload']['name'],"."));
-				$zip->extractTo("{$_SERVER['DOCUMENT_ROOT']}/custom/$folder_name");
+				$location = "{$local_dir}custom/$folder_name";
+				$zip->extractTo($location);
 				$zip->close();
-				/* Get list of all currently defined classes... */
-				$current_classes = get_declared_classes();
-				/* Now load every file in /custom/$folder_name... */
-				$files = scandir("{$_SERVER['DOCUMENT_ROOT']}/custom/$folder_name");
-				foreach($files as $file) {
-					/* If PHP file, include... */
-					if (!preg_match('/\.php?/',$file)) continue;
-					include("{$_SERVER['DOCUMENT_ROOT']}/custom/$folder_name/$file");
+				/* Search for .module file... */
+				$info_files = recursive_glob('*.module',$location);
+				foreach($info_files as $info_file) {
+					$module_info = json_decode(file_get_contents($info_file),true);
+					$module_info['Filename'] = dirname($info_file) . "/{$module_info['Filename']}";
+					/* Confirm no dependencies... */
+					if (!empty($module_info['Requires'])) {
+						$query = "
+							SELECT COUNT(*) as num_modules
+							FROM _MODULES
+							WHERE NAME IN (".substr(str_repeat("?,",count($module_info['Requires'])),0,-1).")";
+						$params = array();
+						foreach($module_info['Requires'] as $required)
+							array_push($params, array("type" => "s", "value" => $required));
+						$result = $db->run_query($query,$params);
+						if ($result[0]['num_modules'] != count($module_info['Requires'])) {
+							layout::set_message("Unable to install module {$module_info['Module']}.  Please insure all required modules are installed first.");
+							continue;
+						}
+					}
+					$success = module::install_module($module_info);
+					if ($success) layout::set_message('New module installed.','info');
+					else layout::set_message('Unable to install module.','error');
 				}
-				$new_classes = array_diff(get_declared_classes(),$current_classes);
-				foreach($new_classes as $class) {
-					/* Discard if widget... */
-					if (is_subclass_of($class,'widget')) continue;
-					$success = $success && call_user_func_array(array($class,'install'),array());
-				}
-				if ($success) layout::set_message('New module installed.','info');
-				else layout::set_message('Unable to install module.','error');
 			} else {
 				layout::set_message('Unable to install read .zip file to install class.','error');
 			}
@@ -92,12 +101,14 @@ class modules extends module {
 		$query = "SELECT CLASS_NAME FROM _MODULES";
 		$modules = group_numeric_by_key($db->run_query($query),'CLASS_NAME');
 		$required_rights = array();
+		
+		/* This will need to be rewritten to allow for <RIGHT> = array('description' => '<description>', 'default_groups' => array(<DEFAULT GROUPS>))*/
 		foreach($modules as $class) {
 			$required_rights = array_merge_recursive($required_rights,call_user_func(array($class,'required_rights')));
 		}
 		foreach($required_rights as $module=>$types) {
 			foreach($types as $type=>$rights) {
-				foreach($rights as $right=>$description) {
+				foreach($rights as $right=>$right_info) {
 					if (users::get_right_id($module,$type,$right)!==false) unset($required_rights[$module][$type][$right]);
 				}
 				if (empty($required_rights[$module][$type])) unset($required_rights[$module][$type]);
@@ -123,8 +134,8 @@ class modules extends module {
 			foreach($required_rights as $module=>$types) {
 				$output['html'] .= "<h5>$module</h5><ul>";
 				foreach($types as $type=>$rights) {
-					foreach($rights as $right=>$description) {
-						$output['html'] .= "<li><button module='$module' type='$type' right='".make_html_safe($right,ENT_QUOTES)."' title='$description'>$type / $right</button></li>";
+					foreach($rights as $right=>$right_info) {
+						$output['html'] .= "<li><button module='$module' type='$type' right='".make_html_safe($right,ENT_QUOTES)."' title='{$right_info['description']}'>$type / $right</button></li>";
 					}
 				}
 				$output['html'] .= "</ul>";
@@ -180,75 +191,29 @@ class modules extends module {
 	
 	/* Install the module... */
 	public static function install() {
-		global $db;
-		/* Create the Modules Module... */
-		$query = "
-			INSERT INTO _MODULES (NAME,DESCRIPTION,IS_CORE,FILENAME,CLASS_NAME)
-			SELECT tmp.NAME, tmp.DESCRIPTION, tmp.IS_CORE, ?,?
-			FROM (SELECT 'Modules' as Name, 'Administers Other Modules' as DESCRIPTION, 1 as IS_CORE) tmp
-			LEFT JOIN _MODULES M ON tmp.NAME = M.NAME
-			WHERE M.ID IS NULL";
-		$params = array(
-			array("type" => "s", "value" => __FILE__),
-			array("type" => "s", "value" => __CLASS__)
-		);
-		$db->run_query($query,$params);
-		/* Set up rights... */
-		
-		/* Create RIGHT TYPE */
-		$query = "
-			INSERT INTO _RIGHT_TYPES (MODULE_ID,NAME)
-			SELECT M.ID, ?
-			FROM _MODULES M
-			LEFT JOIN _RIGHT_TYPES T ON M.ID = T.MODULE_ID AND T.NAME = ?
-			WHERE M.NAME = ? AND T.ID IS NULL";
-		$params = array(
-			array("type" => "s", "value" => "Administer"),
-			array("type" => "s", "value" => "Administer"),
-			array("type" => "s", "value" => "Modules")
-		);
-		$db->run_query($query,$params);
-		
-		/* Create rights for each module */
-		$query = "
-			INSERT INTO _RIGHTS (RIGHT_TYPE_ID, NAME, DESCRIPTION)
-			SELECT T.ID, CONCAT('Administer ',A.NAME), CONCAT('Allows a user to administer the ',A.NAME,' module.')
-			FROM _MODULES M
-			JOIN _RIGHT_TYPES T ON M.ID = T.MODULE_ID
-			JOIN _MODULES A ON 1=1
-			LEFT JOIN _RIGHTS R ON 
-				T.ID = R.RIGHT_TYPE_ID AND
-				R.NAME = CONCAT('Administer ',A.NAME)
-			WHERE M.NAME = ? AND T.NAME = ? AND R.ID IS NULL";
-		$params = array(
-			array("type" => "s", "value" => "Modules"),
-			array("type" => "s", "value" => "Administer"),
-		);
-		$db->run_query($query,$params);
-		
-		/* Give rights to Admin group... */
-		$query = "
-			INSERT INTO _GROUPS_RIGHTS (GROUP_ID,RIGHT_ID)
-			SELECT G.ID, R.ID
-			FROM _GROUPS G
-			JOIN _MODULES M ON M.NAME = ?
-			JOIN _RIGHT_TYPES T ON M.ID = T.MODULE_ID AND T.NAME = ?
-			JOIN _RIGHTS R ON T.ID = R.RIGHT_TYPE_ID
-			LEFT JOIN _GROUPS_RIGHTS GR ON
-				G.ID = GR.GROUP_ID AND
-				R.ID = GR.RIGHT_ID
-			WHERE G.NAME = ? AND GR.GROUP_ID IS NULL";
-		$params = array(
-			array("type" => "s", "value" => "Modules"),
-			array("type" => "s", "value" => "Administer"),
-			array("type" => "s", "value" => "Admin")
-		);
-		$db->run_query($query,$params);
-		return true;
+		/* Nothing to do...*/
 	}
 	
 	/* Uninstall the module... */
 	public static function uninstall() {}
+	
+	/* List of required rights... */
+	public static function required_rights() {
+		global $db;
+		$required = array(
+			'Modules' => array(
+				'Administer' => array()
+			)
+		);
+		$query = "SELECT NAME FROM _MODULES";
+		$modules = group_numeric_by_key($db->run_query($query),'NAME');
+		foreach($modules as $module) 
+			$required['Modules']['Administer']["Administer $module"] = array(
+				'description' => "Allows a user to administer the $module module.",
+				'default_groups' => array('Admin')
+			);
+		return $required;
+	}
 	
 	/* Returns a multi-dimensional array of menu options for this module (including sub-menus) */
 	public static function menu() {

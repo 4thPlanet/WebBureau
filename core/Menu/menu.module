@@ -1,0 +1,8 @@
+{
+	"Module" : "Menu",
+	"Description" : "Handles the site menu",
+	"Core" : 1,
+	"Filename" : "Menu.php",
+	"Class" : "menu",
+	"Requires" : ["Users"]
+}

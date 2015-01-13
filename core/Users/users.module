@@ -1,0 +1,8 @@
+{
+	"Module" : "Users",
+	"Description" : "Handles users, groups, and rights",
+	"Core" : 1,
+	"Filename" : "Users.php",
+	"Class" : "users",
+	"Requires" : []
+}

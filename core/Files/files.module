@@ -1,0 +1,8 @@
+{
+	"Module" : "Files",
+	"Description" : "Handles User File Uploads",
+	"Core" : 1,
+	"Filename" : "Files.php",
+	"Class" : "files",
+	"Requires" : ["Users"]
+}

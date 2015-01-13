@@ -1,6 +1,20 @@
 <?php
 class layout_main_content extends layout implements widget {
 	/* Prints out main content of the page... */
+	public static function install() {
+		global $db;
+		$query = "
+			INSERT INTO _WIDGETS (MODULE_ID, NAME, FILENAME, CLASS_NAME)
+			SELECT M.ID, 'Main Content', ?, 'layout_main_content'
+			FROM _MODULES M
+			LEFT JOIN _WIDGETS W ON M.ID = W.MODULE_ID AND W.Name = 'Main Content'
+			WHERE M.NAME = 'Layout' AND W.ID IS NULL";
+		$params = array(
+			array("type" => "s", "value" => __FILE__)
+		);
+		$db->run_query($query,$params);
+	}
+	
 	public static function view() {
 		global $db, $local;
 		/* Confirm args are set (will need to implement a correct way of defaulting later...) */

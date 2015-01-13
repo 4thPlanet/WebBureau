@@ -1,0 +1,8 @@
+{
+	"Module" : "Layout",
+	"Description" : "Defines Site Layout",
+	"Core" : 1,
+	"Filename" : "Layout.php",
+	"Class" : "layout",
+	"Requires" : ["Users"]
+}

@@ -28,6 +28,59 @@ class module {
 		return false;
 	}
 	
+	/* First step to install a module... */
+	public static function install_module($info) {
+		global $db;
+		/* First confirm module hasn't already been installed... */
+		$query = "SELECT CASE COUNT(*) WHEN 0 THEN 0 ELSE 1 END AS is_installed FROM _MODULES WHERE NAME = ?";
+		$params = array(
+			array("type" => "s", "value" => $info['Module'])
+		);
+		$result = $db->run_query($query,$params);
+		if ($result[0]['is_installed']) return false;
+		/* Save the Module record... */
+		$query = "INSERT INTO _MODULES (NAME,DESCRIPTION,IS_CORE,FILENAME,CLASS_NAME) VALUES (?,?,?,?,?)";
+		$params = array(
+			array("type" => "s", "value" => $info['Module']),
+			array("type" => "s", "value" => $info['Description']),
+			array("type" => "s", "value" => $info['Core']),
+			array("type" => "s", "value" => $info['Filename']),
+			array("type" => "s", "value" => $info['Class'])
+		);
+		$db->run_query($query,$params);
+		require_once($info['Filename']);
+		
+		/* Run any commands specific for this module's installation... */
+		call_user_func_array(array($info['Class'],'install'),array());
+		
+		/* Install any rights and auto-assign them as needed... */
+		$required_rights = call_user_func_array(array($info['Class'],'required_rights'),array());
+		if (!empty($required_rights)) {
+			foreach($required_rights as $module=>$types) {
+				foreach($types as $type=>$rights) {
+					foreach($rights as $right=>$right_info) {
+						/* If right exists, do nothing... */
+						if (users::get_right_id($module,$type,$right)!==false) continue;
+						/* Create right and assign to $info['default_groups'] */
+						$new_right = users::create_right($module,$type,$right,$right_info['description'],true);
+						if (!empty($right_info['default_groups'])) {
+							$query = "SELECT ID FROM _GROUPS WHERE NAME IN (".substr(str_repeat("?,",count($right_info['default_groups'])),0,-1).")";
+							$params = array();
+							foreach($right_info['default_groups'] as $group)
+								array_push($params,array("type" => "s", "value" => $group));
+							$groups = group_numeric_by_key($db->run_query($query,$params),'ID');
+							users::assign_rights(array($new_right => $groups),true);
+						}
+					}
+				}
+			}
+			/* Install again (Yes, its very slow doing it this way, unfortunately Users and base module have some conflicts and this is the best solution I can come up with for now)*/
+			call_user_func_array(array($info['Class'],'install'),array());
+		}
+		
+		return true;
+	}
+	
 	/* What needs to be done in order to install the module*/
 	public static function install() {
 		global $db;
@@ -51,7 +104,7 @@ class module {
 			FILENAME varchar(200),
 			CLASS_NAME varchar(100),
 			PRIMARY KEY (ID),
-			FOREIGN KEY(MODULE_ID) REFERENCES _MODULES(ID)
+			FOREIGN KEY (MODULE_ID) REFERENCES _MODULES(ID)
 		);";
 		$db->run_query($query);
 		return true;

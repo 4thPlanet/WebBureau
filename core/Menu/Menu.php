@@ -35,17 +35,6 @@ class menu extends module {
 				FOREIGN KEY (MENU_ID) REFERENCES _MENU(ID)
 			 )";
 		$db->run_query($query);
-		$query = "
-			INSERT INTO _MODULES (NAME, DESCRIPTION, IS_CORE, FILENAME, CLASS_NAME)
-			SELECT tmp.NAME, tmp.DESCRIPTION, tmp.IS_CORE, ?, ?
-			FROM (SELECT 'Menu' as NAME,'Handles the site menu' as DESCRIPTION,1 as IS_CORE) tmp
-			LEFT JOIN _MODULES M ON	M.NAME = tmp.NAME
-			WHERE M.ID IS NULL";
-		$params = array(
-			array("type" => "s", "value" => __FILE__),
-			array("type" => "s", "value" => __CLASS__)
-		);
-		$db->run_query($query,$params);
 		
 		/* Install Widgets*/
 		require_once(__DIR__ . '/Menu.Widget.php');

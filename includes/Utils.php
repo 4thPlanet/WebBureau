@@ -195,7 +195,32 @@ function get_files_by_ext($filter, $loc='') {
 		if (!is_file("$loc/$file") || !preg_match("$filter",$file))
 			unset($files[$idx]);
 	}
-	return array_values($files);}
+	return array_values($files);
+}
+
+/*
+ * A recursive glob...
+ * Input:
+ ** $pattern - the pattern to check for
+ ** $dir - The starting directory (defaults to $local_dir global)
+ ** $flag - any flags to run
+ * Returns:
+ ** An array of files which match the pattern in the 
+ * */
+function recursive_glob($pattern,$dir="",$flag=0) {
+	global $local_dir;
+	if (empty($dir)) $dir = $local_dir;
+	if (substr($dir,-1)!='/' && substr($pattern,0,1)!='/') $dir .= "/";
+	$files = glob($dir . $pattern,$flag);
+	$folders = get_directories($dir);
+	if (!empty($folders))
+		foreach($folders as $folder) 
+			$files = array_merge($files,recursive_glob($pattern,"{$dir}{$folder}/",$flag));
+	
+	
+	return $files;
+}
+
 /*
  * Check's a file belongs to a certain MIME type.
  * Input:

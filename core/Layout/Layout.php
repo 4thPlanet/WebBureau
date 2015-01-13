@@ -8,26 +8,10 @@
 class layout extends module {	
 	public static function install() {
 		global $db;
-		$query = "INSERT INTO _MODULES (NAME, DESCRIPTION, IS_CORE, FILENAME, CLASS_NAME)
-		SELECT tmp.NAME, tmp.DESCRIPTION, tmp.IS_CORE, ?, tmp.CLASS_NAME
-		FROM (SELECT 'Layout' as NAME, 'Defines site layout' as DESCRIPTION, 1 as IS_CORE, 'layout' as CLASS_NAME) tmp
-		LEFT JOIN _MODULES M ON tmp.NAME = M.NAME
-		WHERE M.ID IS NULL";
-		$params = array(
-			array("type" => "s", "value" => __FILE__)
-		);
-		$db->run_query($query,$params);
 		
-		$query = "INSERT INTO _WIDGETS (MODULE_ID, NAME, FILENAME, CLASS_NAME)
-		SELECT M.ID, 'Main Content', ?, 'layout_main_content'
-		FROM _MODULES M
-		LEFT JOIN _WIDGETS W ON M.ID = W.MODULE_ID AND W.Name = 'Main Content'
-		WHERE M.NAME = 'Layout' AND W.ID IS NULL";
-		$params = array(
-			array("type" => "s", "value" => __DIR__ . '/Layout.MainContent.php')
-		);
-		$db->run_query($query,$params);
-		
+		require_once("Layout.MainContent.php");
+		layout_main_content::install();
+
 		$query = "CREATE TABLE IF NOT EXISTS _AREAS (
 			ID int AUTO_INCREMENT,
 			AREA_NAME VARCHAR(20),

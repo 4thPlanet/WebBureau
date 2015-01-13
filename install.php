@@ -152,34 +152,67 @@ if (empty($_POST['username'])) {
 	require_once('includes/Utils.php');
 	require_once('core/Module.php');
 	require_once('core/Widget.php');
+	
+	/* Hoping to get rid of this entire list... */
+	/*
 	require_once('core/Layout/Layout.php');
 	require_once('core/Menu/Menu.php');
 	require_once('core/Tables/Tables.php');
 	require_once('core/Users/Users.php');
+	require_once('core/Files/Files.php');
 	require_once('core/Modules/Modules.php');
-	global $db;
-	$db = new clientData(); ?>
+	*/
+	global $db,$local_dir;
+	$db = new clientData(); 
+	$local_dir = __DIR__ . "/";
+	?>
 <html>
 	<head>
 		<title>Installing system...</title>
 	</head>
 	<body><?
+	/* First install the core module module... */
+	echo "Installing the base module...<br />";
+	module::install();
 	
 	
-	
-	/* Install the Module module... */
-	echo "<p>Installing module 'module'..." . (module::install() ? "success!" : "failed!") . "</p>";
-	/* Install the Users module... */
-	echo "<p>Installing module 'user'..." . (users::install() ? "success!" : "failed!") . "</p>";
-	/* Install the Layout module... */
-	echo "<p>Installing module 'layout'..." . (layout::install() ? "success!" : "failed!") . "</p>";
-	/* Install the Menu module.... */
-	echo "<p>Installing module 'menu'..." . (menu::install() ? "success!" : "failed!") . "</p>";
-	/* Install the Tables module... */
-	echo "<p>Installing module 'table'..." . (tables::install() ? "success!" : "failed!") . "</p>";
-	/* Install the Modules module... */
-	echo "<p>Installing module 'modules'..." . (modules::install() ? "success!" : "failed!") . "</p>";
-	
+	/* Do a search of all .module files... */
+	$module_files = recursive_glob('*.module');
+	/* For each .module file, convert to object from JSON */
+	$every_module = array();
+	$idx=0;
+	foreach($module_files as $module_info_file) {
+		$every_module[$idx] = json_decode(file_get_contents($module_info_file),true);
+		$every_module[$idx]['Filename'] = dirname($module_info_file) . "/{$every_module[$idx]['Filename']}" ;
+		$idx++;
+	}
+	/* Sort by in order of what is required first... */
+	function cmp_module($a,$b) {
+		if (array_search($b['Module'],$a['Requires'])!==false) return 1;
+		elseif (array_search($a['Module'],$b['Requires'])!==false) return -1;
+		elseif ((isset($a['Install Order']) ? $a['Install Order'] : 0) > (isset($b['Install Order']) ? $b['Install Order'] : 0)) return 1;
+		else return 0;
+	}
+	usort($every_module,'cmp_module');
+	/* Loop through each .module, if no require modules left then install (otherwise continue) */
+	while (true) {
+		foreach($every_module as $idx=>$mod_info) {
+			/* Don't install if there are other dependencies */
+			if (!empty($mod_info['Requires'])) continue;
+			/* Install... */
+			$mod_name = $mod_info['Module'];
+			echo "Installing module $mod_name...<br />";
+			if (!module::install_module($mod_info)) die("Unable to install module $mod_name");
+			unset($every_module[$idx]);
+			$left = array_keys($every_module);
+			foreach($left as $idx_left) {
+				$key = array_search($mod_name,$every_module[$idx_left]['Requires']);
+				if ($key!==false) unset ($every_module[$idx_left]['Requires'][$key]);
+			}
+		}
+		if (empty($every_module)) break;
+	}
+
 	/* Create a (very) basic layout - Centered Menu widget in header, Login/Welcome on Left Sidebar... */
 	$query = "
 		INSERT INTO _LAYOUT(AREA_ID, WIDGET_ID)

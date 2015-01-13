@@ -1,0 +1,9 @@
+{
+	"Module" : "Modules",
+	"Description" : "Administers Other Modules",
+	"Core" : 1,
+	"Filename" : "Modules.php",
+	"Class" : "modules",
+	"Requires" : ["Users"],
+	"Install Order" : 1000
+}

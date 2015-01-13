@@ -92,16 +92,6 @@ class tables extends module {
 	
 	public static function install() {
 		global $db;
-		$query = "INSERT INTO _MODULES (NAME, DESCRIPTION, IS_CORE, FILENAME,CLASS_NAME)
-		SELECT tmp.NAME, tmp.DESCRIPTION, tmp.IS_CORE, ?, ?
-		FROM (SELECT 'Tables' as NAME,'Handles Database Tables' as DESCRIPTION,1 as IS_CORE) tmp
-		LEFT JOIN _MODULES M ON tmp.NAME = M.NAME
-		WHERE M.ID IS NULL";
-		$params = array(
-			array("type" => "s", "value" => __FILE__),
-			array("type" => "s", "value" => __CLASS__),
-		);
-		$db->run_query($query,$params);
 		$query = "CREATE TABLE IF NOT EXISTS _TABLE_INFO (
 			TABLE_NAME varchar(100),
 			SLUG varchar(100) UNIQUE,
@@ -116,59 +106,44 @@ class tables extends module {
 			PRIMARY KEY (TABLE_NAME)
 		);";
 		$db->run_query($query);
-		$query = "INSERT INTO _RIGHT_TYPES (MODULE_ID, NAME)
-		SELECT M.ID, T.TABLE_NAME
-		FROM _MODULES M 
-		JOIN INFORMATION_SCHEMA.TABLES T ON 
-			T.TABLE_SCHEMA = ? 
-		LEFT JOIN _RIGHT_TYPES RT ON
-			RT.MODULE_ID = M.ID AND
-			RT.NAME = T.TABLE_NAME
-		WHERE M.NAME = ? AND RT.ID IS NULL";
-		$params = array(
-			array("type" => "s", "value" => $db->get_db_name()),
-			array("type" => "s", "value" => 'Tables')
-		);
-		$db->run_query($query,$params);
-		$query = "INSERT INTO _RIGHTS (RIGHT_TYPE_ID, NAME, DESCRIPTION)
-		SELECT RT.ID, tmp.NAME, CONCAT('Allows user to ',tmp.NAME,' the ',RT.NAME,' table.') as DESCRIPTION
-		FROM _MODULES M
-		JOIN _RIGHT_TYPES RT ON M.ID = RT.MODULE_ID
-		JOIN (
-			SELECT 'Add' as NAME
-			UNION SELECT 'Edit' AS NAME
-			UNION SELECT 'Delete' as NAME
-			UNION SELECT 'View' as NAME) tmp on 1=1
-		LEFT JOIN _RIGHTS R ON
-			R.RIGHT_TYPE_ID = RT.ID AND
-			R.NAME = tmp.NAME
-		WHERE M.NAME = ? AND R.ID IS NULL";
-		$params = array(
-			array("type" => "s", "value" => 'Tables')
-		);
-		$db->run_query($query,$params);
-		$query = "INSERT INTO _GROUPS_RIGHTS (GROUP_ID, RIGHT_ID)
-		SELECT G.ID, R.ID
-		FROM _MODULES M
-		JOIN _RIGHT_TYPES RT ON M.ID = RT.MODULE_ID
-		JOIN _RIGHTS R ON RT.ID = R.RIGHT_TYPE_ID
-		JOIN _GROUPS G ON 
-			G.NAME = ? OR
-			(G.NAME IN (?,?) AND RT.NAME RLIKE ? AND R.NAME = ?)
-		LEFT JOIN _GROUPS_RIGHTS GR ON 
-			G.ID = GR.GROUP_ID AND
-			R.ID = GR.RIGHT_ID
-		WHERE  M.NAME = ? AND GR.GROUP_ID IS NULL";
-		$params = array(
-			array("type" => "s", "value" => 'Admin'),
-			array("type" => "s", "value" => 'Guest'),
-			array("type" => "s", "value" => 'Registered User'),
-			array("type" => "s", "value" => '^[^\_]'),
-			array("type" => "s", "value" => 'View'),
-			array("type" => "s", "value" => 'Tables')
-		);
-		$db->run_query($query,$params);
 		return true;
+	}
+	
+	public static function required_rights() {
+		global $db;
+		$required = array('Tables' => array());
+		$query = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES T WHERE T.TABLE_SCHEMA = ?";
+		$params = array(
+			array("type" => "s", "value" => $db->get_db_name())
+		);
+		$tables = group_numeric_by_key($db->run_query($query,$params),'TABLE_NAME');
+		foreach($tables as $table) {
+			$required['Tables'][$table] = array(
+				'Add' => array(
+					'description' => "Allows user to add to the $table table.",
+					'default_groups' => array('Admin')
+				),
+				'Edit' => array(
+					'description' => "Allows user to edit the $table table.",
+					'default_groups' => array('Admin')
+				),
+				'Delete' => array(
+					'description' => "Allows user to delete from the $table table.",
+					'default_groups' => array('Admin')
+				),
+				'View' => array(
+					'description' => "Allows user to view the $table table.",
+					'default_groups' => array('Admin')
+				)
+			);
+			if (!preg_match('/^\_/',$table))
+				array_push(
+					$required['Tables'][$table]['View']['default_groups'],
+					'Guest',
+					'Registered User'
+				);
+		}
+		return $required;
 	}
 	
 	public static function get_primary_key($table_name) {
