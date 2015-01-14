@@ -114,7 +114,7 @@ class tables extends module {
 				META_CONTENT text,
 				PRIMARY KEY (TABLE_NAME,META_NAME)
 			)";
-		$db->run_query($query,$params);
+		$db->run_query($query);
 		return true;
 	}
 	

@@ -48,6 +48,22 @@ class module {
 			array("type" => "s", "value" => $info['Class'])
 		);
 		$db->run_query($query,$params);
+		$mod_id = $db->get_inserted_id();
+		/* Save any dependencies... */
+		if (!empty($info['Requires'])) {
+			$query = "
+				INSERT INTO _MODULES_DEPENDENCIES (MODULE_ID,REQUIRED_MODULE_ID)
+				SELECT ?, M.ID
+				FROM _MODULES M
+				WHERE NAME IN (".substr(str_repeat("?,",count($info['Requires'])),0,-1).")";
+			$params = array(
+				array("type" => "i", "value" => $mod_id)
+			);
+			foreach($info['Requires'] as $required)
+				array_push($params,array("type" => "s", "value" => $required));
+			$db->run_query($query,$params);
+		}
+		
 		require_once($info['Filename']);
 		
 		/* Run any commands specific for this module's installation... */
@@ -94,9 +110,19 @@ class module {
 				CLASS_NAME varchar(100),
 				SLUG varchar(50) UNIQUE,
 				PRIMARY KEY (ID)
-			);
-		";
+			);";
 		$db->run_query($query);
+		$query = "
+			CREATE TABLE IF NOT EXISTS _MODULES_DEPENDENCIES (
+				ID int AUTO_INCREMENT,
+				MODULE_ID int,
+				REQUIRED_MODULE_ID int,
+				PRIMARY KEY (ID),
+				FOREIGN KEY (MODULE_ID) REFERENCES _MODULES(ID) ON DELETE CASCADE,
+				FOREIGN KEY (REQUIRED_MODULE_ID) REFERENCES _MODULES(ID)
+			)";
+		$db->run_query($query);
+		
 		$query = "CREATE TABLE IF NOT EXISTS _WIDGETS (
 			ID int AUTO_INCREMENT,
 			MODULE_ID int,

@@ -139,6 +139,7 @@ if (empty($_POST['username'])) {
         protected static $db_server = "'.str_replace('"','\"',$_POST['db_location']).'";
         protected static $db_name = "'.str_replace('"','\"',$_POST['db_name']).'";
         protected static $db_login = "'.str_replace('"','\"',$_POST['db_user']).'";
+        protected $db_connection;
         public function get_db_name() {
             return $this::$db_name;
         }
@@ -153,15 +154,6 @@ if (empty($_POST['username'])) {
 	require_once('core/Module.php');
 	require_once('core/Widget.php');
 	
-	/* Hoping to get rid of this entire list... */
-	/*
-	require_once('core/Layout/Layout.php');
-	require_once('core/Menu/Menu.php');
-	require_once('core/Tables/Tables.php');
-	require_once('core/Users/Users.php');
-	require_once('core/Files/Files.php');
-	require_once('core/Modules/Modules.php');
-	*/
 	global $db,$local_dir;
 	$db = new clientData(); 
 	$local_dir = __DIR__ . "/";
@@ -195,10 +187,13 @@ if (empty($_POST['username'])) {
 	}
 	usort($every_module,'cmp_module');
 	/* Loop through each .module, if no require modules left then install (otherwise continue) */
+	foreach($every_module as &$module)
+		$module['Still_Requires'] = $module['Requires'];
+	unset($module);
 	while (true) {
 		foreach($every_module as $idx=>$mod_info) {
 			/* Don't install if there are other dependencies */
-			if (!empty($mod_info['Requires'])) continue;
+			if (!empty($mod_info['Still_Requires'])) continue;
 			/* Install... */
 			$mod_name = $mod_info['Module'];
 			echo "Installing module $mod_name...<br />";
@@ -206,8 +201,8 @@ if (empty($_POST['username'])) {
 			unset($every_module[$idx]);
 			$left = array_keys($every_module);
 			foreach($left as $idx_left) {
-				$key = array_search($mod_name,$every_module[$idx_left]['Requires']);
-				if ($key!==false) unset ($every_module[$idx_left]['Requires'][$key]);
+				$key = array_search($mod_name,$every_module[$idx_left]['Still_Requires']);
+				if ($key!==false) unset ($every_module[$idx_left]['Still_Requires'][$key]);
 			}
 		}
 		if (empty($every_module)) break;
