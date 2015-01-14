@@ -44,7 +44,7 @@ class tables extends module {
 			);
 			$table_info = $db->run_query($query,$params);
 			if (empty($table_info) || !$table_info[0]['DETAILED_MENU']) continue;
-			$PK = implode(",",array_keys(group_numeric_by_key(static::get_primary_key($table['TABLE_NAME']),'COLUMN_NAME')));
+			$PK = implode(",",group_numeric_by_key(static::get_primary_key($table['TABLE_NAME']),'COLUMN_NAME'));
 			$decode = static::sql_decode_display($table['TABLE_NAME'],SHORT_DISPLAY);
 			$query = "SELECT $PK, {$decode['concat']} AS SHORT_DISPLAY
 			FROM {$table['TABLE_NAME']}";
@@ -59,6 +59,7 @@ class tables extends module {
 					);
 			}
 		}
+		
 		return $menu;
 	}
 	
@@ -68,15 +69,28 @@ class tables extends module {
 		$url = static::get_module_url();
 		if (empty($args)) return $url;
 		/* Get the Table */
-		$table = array_shift($args);
+		$query = "
+			SELECT T.TABLE_NAME, IFNULL(I.SLUG,T.TABLE_NAME) as 'table'
+			FROM INFORMATION_SCHEMA.TABLES T
+			LEFT JOIN _TABLE_INFO I ON T.TABLE_NAME = I.TABLE_NAME
+			WHERE T.TABLE_SCHEMA = ? AND T.TABLE_NAME = ?";
+		$params = array(
+			array("type" => "s", "value" => $db->get_db_name()),
+			array("type" => "s", "value" => array_shift($args))
+		);
+		$result = $db->run_query($query,$params);
+		extract($result[0]);
+		
+		
 		$url.= "$table";
 		if (empty($args)) return $url;
 		/* Get the ID */
-		$PK = static::get_primary_key($table);
-		$display = static::sql_decode_display($table,SHORT_DISPLAY);
-		$query = "SELECT {$display['concat']} AS DISPLAY
-		FROM $table
-		WHERE ";
+		$PK = static::get_primary_key($TABLE_NAME);
+		$display = static::sql_decode_display($TABLE_NAME,SHORT_DISPLAY);
+		$query = "
+			SELECT {$display['concat']} AS DISPLAY
+			FROM $TABLE_NAME
+			WHERE ";
 		$params = $display['params'];
 		$clause = array();
 		foreach($PK as $key) {
@@ -86,8 +100,9 @@ class tables extends module {
 		$query .= implode(" AND ", $clause);
 		$display = $db->run_query($query,$params);
 		if (empty($display)) return $url;
-		else return $url . '/' . make_url_safe($display[0]['DISPLAY'],ENT_QUOTES) ;
 		
+		if (!empty($table)) $url .= "/";
+		return $url . make_url_safe($display[0]['DISPLAY'],ENT_QUOTES) ;		
 	}
 	
 	public static function install() {
@@ -695,6 +710,7 @@ class tables extends module {
 		$query = "SELECT * FROM $table WHERE {$condition['concat']} RLIKE ?";
 		$data = $db->run_query($query,$params);
 		if (!empty($data)) $data = $data[0];
+		elseif (empty($data) && empty($id)) return view_table($table);
 
 		/* Pick up rights checks here!!!!! */
 		if (!empty($action) && !$user->check_right('Tables',$table,ucfirst($action)))  {
@@ -815,28 +831,48 @@ class tables extends module {
 		/* First confirm $table is in fact a table... */
 		if (!empty($table)) {
 			$query = "
-				SELECT CASE COUNT(*) WHEN 0 THEN 0 ELSE 1 END as is_table 
-				FROM INFORMATION_SCHEMA.TABLES
-				WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?";
+				SELECT T.TABLE_NAME
+				FROM _TABLE_INFO I
+				JOIN INFORMATION_SCHEMA.TABLES T ON I.TABLE_NAME = T.TABLE_NAME
+				WHERE IFNULL(I.SLUG,I.TABLE_NAME) = ? AND T.TABLE_SCHEMA = ?";
 			$params = array(
-				array("type" => "s", "value" => $db_name),
 				array("type" => "s", "value" => $table),
+				array("type" => "s", "value" => $db_name)
+				
 			);
 			$result = $db->run_query($query,$params);
-			extract($result[0]);
-			if (!$is_table) $table = '';
+			if (empty($result)) {
+				list($table,$id,$action) = array('',$table,$id);
+			} else {
+				$table = $result[0]['TABLE_NAME'];
+			}
 		}
-		/* If $table is blank, display all tables which can be viewed... */
 		if (empty($table)) {
-			return static::view_tables();
+			$query = "
+				SELECT T.TABLE_NAME
+				FROM _TABLE_INFO I
+				JOIN INFORMATION_SCHEMA.TABLES T ON I.TABLE_NAME = T.TABLE_NAME
+				WHERE I.SLUG = '' AND T.TABLE_SCHEMA = ?";
+			$params = array(
+				array("type" => "s", "value" => $db_name)
+			);
+			$result = $db->run_query($query,$params);
+			if (empty($result)) {
+				/* No table fits this... */
+				if (!empty($id)) {
+					header("Location: " . tables::get_module_url());
+					exit();
+					return;
+				}
+			} else {
+				$table = $result[0]['TABLE_NAME'];
+			}
 		}
-		/* If $id is blank, display all records for that table */
-		elseif (empty($id)) {
-			return static::view_table($table);
-		}
-		/* If $table and $id are both provided, display the record for this table */
-		else {
+		
+		if (!empty($table)) {
 			return static::view_table_record($table,$id,$action);
+		} else {
+			return static::view_tables();
 		}
 	}
 }
