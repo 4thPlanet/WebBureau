@@ -215,7 +215,7 @@ class module {
 	/* returns information about the module called, using the args array as a reference*/
 	public static function get_module(&$args) {
 		global $db;
-		$slug = array_shift($args);
+		$slug = empty($args) ? "" : array_shift($args);
 		$query = "SELECT *, 1 as pref
 			FROM _MODULES
 			WHERE SLUG = ?
@@ -230,7 +230,7 @@ class module {
 		);
 		$module = $db->run_query($query,$params);
 		if (!empty($module)) return $module[0];
-		array_unshift($args,$slug);
+		if (!empty($slug)) array_unshift($args,$slug);
 		$params = array(
 			array("type" => "s", "value" => ""),
 			array("type" => "s", "value" => "")
