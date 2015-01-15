@@ -38,7 +38,43 @@ $(function() {
 		$(this).addClass('selected');
 	});
 	$('#menu').on('dblclick','li',function(e) {
-		alert("At this point a dialog should appear prompting you to enter the new text for this menu item!!");
+		var $src = $(this);
+		var $d = $('<div />')
+			.data('src',$src);
+		
+		$('<p />')
+			.text('Please enter the text for this menu item:')
+			.appendTo($d);
+		
+		$('<input />')
+			.attr({
+				id: 'menu-text'
+			})
+			.css({
+				width: '100%'
+			})
+			.val($src.contents().eq(0).text())
+			.appendTo($d);
+		
+		$d.dialog({
+			modal: true,
+			title: 'Menu Item Text',
+			width: 500,
+			buttons: {
+				Set: function() {
+					/* Set the menu text... */
+					$d.data('src')
+						.find(' > .menu-text')
+						.text($('#menu-text').val());
+					$d.remove();
+				},
+				Cancel: function() {$(this).dialog('close');}
+			},
+			close: function() {
+				$d.remove();
+			}
+		});
+
 	});
 	/* Make it all sortable... */
 	$('#menu>ul').sortable();
@@ -86,16 +122,19 @@ $(function() {
 /* converts the menu to an object recursively*/
 function menu_to_object($menu) {
 	var obj = {};
+	var idx = 0;
 	$menu.children('li').each(function() {
 		var $this = $(this);
-		var text = $this[0].childNodes[0].nodeValue.trim();
-		obj[text] = {
+		var text = $this.find('> .menu-text').text();
+		obj[idx] = {
 			args: $.parseJSON($this.attr('args')),
 			module: $this.attr('module'),
-			right: $this.attr('right')
+			right: $this.attr('right'),
+			text: text
 			};
 		if ($this.find('ul li').length)
-			obj[text].submenu = menu_to_object($this.children('ul'));
+			obj[idx].submenu = menu_to_object($this.children('ul'));
+		idx++;
 	});
 	return obj;
 }

@@ -62,7 +62,7 @@ class menu extends module {
 	private static function save_sub_menu($menu,$IDs, $parent = null) {
 			global $db;
 			$count = 0;
-			foreach($menu as $idx=>$item) {
+			foreach($menu as $item) {
 				$id = array_shift($IDs);
 				if (is_array($id)) $id = array_values($id)[0];
 				$count++;
@@ -78,7 +78,7 @@ class menu extends module {
 				$params = array(
 					array("type" => "i", "value" => $parent),
 					array("type" => "i", "value" => $item['module']),
-					array("type" => "s", "value" => $idx),
+					array("type" => "s", "value" => $item['text']),
 					array("type" => "i", "value" => $item['right']),
 					array("type" => "i", "value" => $count),
 					array("type" => "i", "value" => $id)
@@ -258,7 +258,7 @@ class menu extends module {
 			foreach($args as $arg) {
 				$argList[] = $arg['ARG'];
 				}
-			$display .= "<li module='{$item['MODULE_ID']}' right='{$item['RIGHT_ID']}' args='".json_encode($argList)."'>{$item['TEXT']}<ul>".static::menu_simple_display($item['ID'])."</ul><span class='remove'>x</span></li>";
+			$display .= "<li module='{$item['MODULE_ID']}' right='{$item['RIGHT_ID']}' args='".json_encode($argList)."'><span class='menu-text'>{$item['TEXT']}</span><ul>".static::menu_simple_display($item['ID'])."</ul><span class='remove'>x</span></li>";
 		}
 		
 		return $display;
@@ -266,7 +266,7 @@ class menu extends module {
 	
 	/* Recursive function to convert $obj to a li element*/
 	private static function menu_object_to_li($name,$obj) {
-		$li = "<li right='{$obj['right']}' args='".make_html_safe(json_encode($obj['args']),ENT_QUOTES)."'>$name <span class='to-menu' title='Click here to move this item onto the menu.'>--&gt;</span>";
+		$li = "<li right='{$obj['right']}' args='".make_html_safe(json_encode($obj['args']),ENT_QUOTES)."'><span class='menu-text'>$name</span> <span class='to-menu' title='Click here to move this item onto the menu.'>--&gt;</span>";
 		if (!empty($obj['submenu']))  {
 			$li .= "<ul>";
 			foreach($obj['submenu'] as $text=>$submenu) {
