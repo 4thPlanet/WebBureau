@@ -25,8 +25,8 @@
     
     if (array_key_exists('ajax',$_REQUEST)) {
 		if (empty($_REQUEST['widget_id'])) {
-			$module = module::get_module($_REQUEST['args']);
-			exit(json_encode(call_user_func_array(array($module['CLASS_NAME'],'ajax'),array($_REQUEST['args'],$_REQUEST))));
+			$module = module::get_module($_GET['args']);
+			exit(json_encode(call_user_func_array(array($module['CLASS_NAME'],'ajax'),array($_GET['args'],$_REQUEST))));
 		} else {
 			/* specific to a given widget... */
 			exit(json_encode(call_user_func_array(array('module','widget'),array($_REQUEST['widget_id'],true,$_REQUEST))));
