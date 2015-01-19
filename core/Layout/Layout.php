@@ -279,12 +279,14 @@ class layout extends module {
 				if (!is_array($response)) $response = array('html' => $response);
 				
 				$area_content[$area['AREA_NAME']] = array_merge_recursive($area_content[$area['AREA_NAME']],$response);
-				$area_content[$area['AREA_NAME']]['widgets'][] = 
-					strtolower(
+				$area_content[$area['AREA_NAME']]['widgets'][] = array(
+					'class' => strtolower(
 						preg_replace(
 							array('/[\'"]/','/\s/'),
 							array('','-'),
 							$widget['WIDGET_NAME'])
+					),
+					'ID' => $widget['ID']
 					);
 			}
 			if (!$display_area) unset ($area_content[$area['AREA_NAME']]);
@@ -319,7 +321,7 @@ class layout extends module {
 							foreach($area_content as $area=>$content) {
 							?><div class="<?php echo $area?>">
 							<?php foreach($content['html'] as $idx=>$widget) { 
-							?><div class="widget <?echo $content['widgets'][$idx];?>">
+							?><div class="widget <?echo $content['widgets'][$idx]['class'];?>" widget-id="<?echo $content['widgets'][$idx]['ID'];?>">
 									<?php echo $widget ?>
 								</div>
 							<? } ?>

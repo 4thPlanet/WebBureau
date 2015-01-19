@@ -239,6 +239,7 @@ class module {
 		return (empty($module) ? false : $module[0] );
 	}
 	
+	/* Returns the class used for a given module... */
 	public static function get_module_class($module) {
 		global $db;
 		$query = "SELECT CLASS_NAME FROM _MODULES WHERE NAME = ?";
@@ -250,18 +251,26 @@ class module {
 		return $result[0]['CLASS_NAME'];
 	}
 	
-	public static function widget($id,$params=array()) {
-		/* Determines what exactly is widget $id, then attempts to run it. */
+	public static function widget($id,$ajax=false,$params=array()) {
+		/* Determines what exactly is widget $id, then attempts to run it. If $ajax is true, run ajax method instead */
 		global $db;
-		$query = "SELECT W.CLASS_NAME
-		FROM _WIDGETS W
-		WHERE W.ID = ?";
+		$query = "
+			SELECT W.CLASS_NAME
+			FROM _WIDGETS W
+			WHERE W.ID = ?";
 		$param = array(
 			array("type" => "i", "value" => $id)
 		);
 		$widget = $db->run_query($query,$param);
 		$widget = $widget[0];
-		return call_user_func_array(array($widget['CLASS_NAME'],'view'),array($params));
+		
+		if (is_array($ajax)) {
+			$params = $ajax;
+			$ajax = false;
+		}
+		if (!$ajax)
+			return call_user_func_array(array($widget['CLASS_NAME'],'view'),array($params));
+		else return call_user_func_array(array($widget['CLASS_NAME'],'ajax'),array($params));
 	}
 }
 ?>
