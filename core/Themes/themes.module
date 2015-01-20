@@ -1,0 +1,8 @@
+{
+	"Module" : "Themes",
+	"Description" : "Defines Site Themes",
+	"Core" : 1,
+	"Filename" : "Themes.php",
+	"Class" : "themes",
+	"Requires" : ["Users", "Layout"]
+}
