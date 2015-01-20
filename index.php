@@ -38,6 +38,6 @@
 		$module = module::get_module($args);
 		call_user_func_array(array($module['CLASS_NAME'],'post'),array($args,$_POST));
 	}
-    layout::setup_page();
+    themes::view_page();
     return;
 ?>

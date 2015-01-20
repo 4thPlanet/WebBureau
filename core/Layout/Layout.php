@@ -220,9 +220,8 @@ class layout extends module {
 		exit();
 	}
 
-	public static function setup_page() {
-		global $db;
-		$user = users::get_session_user();
+	protected static function load_page_data() {
+		global $db,$s_user;
 		$query = "
 			SELECT DISTINCT A.ID, AREA_NAME, A.HTML_ORDER
 			FROM _AREAS A
@@ -231,7 +230,6 @@ class layout extends module {
 		$areas = $db->run_query($query);
 		
 		foreach ($areas as $area) {
-			$page_title = '';
 			$area_content[$area['AREA_NAME']] = array(
 				'css' => array(),
 				'script' => array(),
@@ -253,7 +251,7 @@ class layout extends module {
 			$widgets = $db->run_query($query,$params);
 			$display_area = false;
 			foreach($widgets as $widget) {
-				if (!empty($widget['RIGHT']) && (empty($user) || !$user->check_right($widget['MODULE'],$widget['TYPE'],$widget['RIGHT']))) continue;
+				if (!empty($widget['RIGHT']) && (empty($s_user) || !$s_user->check_right($widget['MODULE'],$widget['TYPE'],$widget['RIGHT']))) continue;
 				
 				if (!is_null($widget['BLACKLIST_RESTRICTED'])) {
 					/* Blacklist/Whitelist check */
@@ -291,48 +289,75 @@ class layout extends module {
 			}
 			if (!$display_area) unset ($area_content[$area['AREA_NAME']]);
 		}
-		?>
-		<!DOCTYPE html>
-		<html>
-			<head>
-				<title><?=$page_title?></title>
-				<!-- Still TODO: check for duplicate CSS, SCRIPT, META tags!! -->
-				<? foreach($area_content as $area=>$content) {
-					if (!empty($content['css'])) foreach($content['css'] as $css) {
-						if (filter_var(url_protocol_check($css), FILTER_VALIDATE_URL)) 
-							echo "<link rel='stylesheet' type='text/css' href='$css' />";
-						else echo "<style type='text/css'>$css</style>";
-					}
-					if (!empty($content['script'])) foreach($content['script'] as $script) {
-						if (filter_var(url_protocol_check($script),FILTER_VALIDATE_URL))
-							echo "<script type='text/Javascript' src='$script'></script>";
-						else echo "<script type='text/Javascript'>$script</script>";
-					}
-					if (!empty($content['meta'])) foreach($content['meta'] as $key=>$value) {
-							echo "<meta name='$key' content='$value' />";
-					}
-				}?>
-			</head>
-			<body>
-				<div id="container">
-					<div id="wrapper">
-						<?php 
-//							echo "<pre>".print_r($area_content,true)."</pre>";
-							foreach($area_content as $area=>$content) {
-							?><div class="<?php echo $area?>">
-							<?php foreach($content['html'] as $idx=>$widget) { 
-							?><div class="widget <?echo $content['widgets'][$idx]['class'];?>" widget-id="<?echo $content['widgets'][$idx]['ID'];?>">
-									<?php echo $widget ?>
-								</div>
-							<? } ?>
-							</div>
-						<?php
-						}
-						?>
+		return $area_content;
+	}
+
+	/* $initial will contain any initial scripts, stylesheets, and meta tags that should be loaded on every page. */
+	public static function setup_page($initial = array()) {
+		global $local;
+		$page_title = '';
+		$area_content = static::load_page_data();
+?><!DOCTYPE html>
+<html>
+	<head>
+		<title><?echo $page_title?></title>
+		<link rel="stylesheet" type="text/css" href="<?echo $local;?>style/style.css" />
+		<? if (!empty($initial)) {
+			if (!empty($initial['script'])) foreach($initial['script'] as $script)
+				if (filter_var(url_protocol_check($script),FILTER_VALIDATE_URL))
+					echo "<script type='text/Javascript' src='$script'></script>";
+				else echo "<script type='text/Javascript'>$script</script>";
+			if (!empty($initial['css'])) { 
+				foreach($initial['css'] as $css) {
+					if (filter_var(url_protocol_check($css), FILTER_VALIDATE_URL)) 
+						echo "<link rel='stylesheet' type='text/css' href='$css' />";
+					else echo "<style type='text/css'>$css</style>";
+				}
+				$initial['css'][] = "{$local}style/style.css";
+			} else $initial['css'] = array("{$local}style/style.css");
+			if (!empty($initial['meta'])) foreach($initial['meta'] as $key=>$value) 
+				echo "<meta name='$key' content='$value' />";
+		} else {
+			$initial = array('css' => array());
+		}
+		$loaded_sources = $initial;
+		foreach($area_content as $area=>$content) {
+			if (!empty($content['css'])) foreach($content['css'] as $css) {
+				if (array_search($css,$loaded_sources['css'])) continue;
+				if (filter_var(url_protocol_check($css), FILTER_VALIDATE_URL)) 
+					echo "<link rel='stylesheet' type='text/css' href='$css' />";
+				else echo "<style type='text/css'>$css</style>";
+				$loaded_sources['css'][] = $css;
+			}
+			if (!empty($content['script'])) foreach($content['script'] as $script) {
+				if (array_search($script,$loaded_sources['script'])) continue;
+				if (filter_var(url_protocol_check($script),FILTER_VALIDATE_URL))
+					echo "<script type='text/Javascript' src='$script'></script>";
+				else echo "<script type='text/Javascript'>$script</script>";
+				$loaded_sources['script'][] = $script;
+			}
+			if (!empty($content['meta'])) foreach($content['meta'] as $key=>$value) {
+				/* No need to search for duplicate metas as they overwrite themselves already... */
+				echo "<meta name='$key' content='$value' />";
+			}
+		}?>
+	</head>
+	<body>
+		<div id="container">
+			<div id="wrapper">
+				<?php foreach($area_content as $area=>$content) { ?>
+				<div class="<?php echo $area?>">
+					<?php foreach($content['html'] as $idx=>$widget) { ?>
+					<div class="widget <?echo $content['widgets'][$idx]['class'];?>" widget-id="<?echo $content['widgets'][$idx]['ID'];?>">
+						<?php echo $widget ?>
 					</div>
+					<? } ?>
 				</div>
-			</body>
-		</html>
+				<? } ?>
+			</div>
+		</div>
+	</body>
+</html>
 		<?php
 	}
 }

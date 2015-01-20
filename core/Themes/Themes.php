@@ -61,9 +61,10 @@ class themes extends module {
 					<textarea id='theme-style' name='style'>{$theme['STYLE']}</textarea>
 				</div>";
 			if ($s_user->check_right('Themes','Administration','Set Default Theme')) {
+				$checked = $theme['IS_DEFAULT'] ? 'checked="checked"' : '';
 				$output['html'] .= "
 				<div class='field'>
-					<input type='checkbox' id='is-default-theme' name='default' value='1' />
+					<input type='checkbox' id='is-default-theme' name='default' value='1' $checked />
 					<label for='is-default-theme'>Site Default Theme?</label>
 				</div>";
 			}
@@ -86,13 +87,17 @@ class themes extends module {
 			</form>";	
 		} else {
 			$output['html'] .= "<h4>{$theme['NAME']} Theme</h4>";
-			$output['html'] .= "<p><a href='#'>Stylesheet link should go here...</a></p>";
-			if ($s_user->check_right('Themes','Administration','Set Default Theme')) $output .= "
-			<form method='post' action=''>
-				<p>
-					<button type='submit' name='set-default' value='1'>Save as Site Default</button>
-				</p>
-			</form>";
+			$output['html'] .= "<p><a href='".static::get_module_url()."css/{$theme['ID']}-".make_url_safe($theme['NAME']).".css'>Stylesheet link should go here...</a></p>";
+			if ($s_user->check_right('Themes','Administration','Set Default Theme') && !$theme['IS_DEFAULT']) {
+				$output['html'] .= "
+				<form method='post' action=''>
+					<p>
+						<button type='submit' name='default' value='1'>Save as Site Default</button>
+					</p>
+				</form>";
+			} elseif ($theme['IS_DEFAULT']) {
+				$output['html'] .= "<p>Currently site default theme.</p>";
+			}
 		}
 		
 		$output['html'] .= "<p><a href='".modules::get_module_url()."Themes'>Return to theme administration</a></p>";
@@ -203,12 +208,31 @@ class themes extends module {
 	
 	public static function ajax() {}
 	
-	public static function view() {
+	public static function view($theme='',$file='') {
 		global $db,$s_user;
+		if ($theme=='css' && !empty($file)) {
+			return static::get_stylesheet($file);
+		}
 		/* TODO: Only allow if user has Themes/Selection/<ANYTHING> available... */
 		
 		
 		
+	}
+	
+	/* This file will output a stylesheet stored in the database.  Filename should be of the form <ID>-<THEME_NAME>.css */
+	protected static function get_stylesheet($filename) {
+		global $db;
+		if (!preg_match('/^(?<ID>\d+)-(?<NAME>.*)\.css/',$filename,$theme)) die(1);
+		$query = "SELECT STYLE FROM _THEMES WHERE ID = ? AND NAME RLIKE ?";
+		$params = array(
+			array("type" => "i", "value" => $theme['ID']),
+			array("type" => "s", "value" => decode_url_safe($theme['NAME']))
+		);
+		$result = $db->run_query($query,$params);
+		if (empty($result)) die(2);
+		header("Content-Type: text/css");
+		echo $result[0]['STYLE'];
+		exit;
 	}
 	
 	public static function required_rights() {
@@ -241,6 +265,28 @@ class themes extends module {
 				)
 			)
 		);
+	}
+	
+	/* This function will display the actual page... */
+	public static function view_page() {
+		global $db;
+		$query = "
+			SELECT T.ID, T.NAME, M.CLASS_NAME, CASE WHEN IFNULL(T.STYLE,'') = '' THEN 0 ELSE 1 END as HAS_STYLESHEET
+			FROM _THEMES T
+			JOIN _MODULES M ON T.MODULE_ID = M.ID
+			WHERE T.IS_DEFAULT = 1";
+		$result = $db->run_query($query);
+		if (empty($result)) {
+			layout::setup_page();
+			return;
+		}
+		$theme = $result[0];
+		$css = $theme['HAS_STYLESHEET'] ? array(static::get_module_url() . "css/{$theme['ID']}-".make_url_safe($theme['NAME']).".css") : array();
+		call_user_func_array(
+			array($theme['CLASS_NAME'],'setup_page'),
+			array(
+				array('css' => $css)
+			));
 	}
 }
 ?>
