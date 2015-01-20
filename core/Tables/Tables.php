@@ -710,7 +710,7 @@ class tables extends module {
 		$query = "SELECT * FROM $table WHERE {$condition['concat']} RLIKE ?";
 		$data = $db->run_query($query,$params);
 		if (!empty($data)) $data = $data[0];
-		elseif (empty($data) && empty($id)) return view_table($table);
+		elseif (empty($data) && empty($id)) return static::view_table($table);
 
 		/* Pick up rights checks here!!!!! */
 		if (!empty($action) && !$user->check_right('Tables',$table,ucfirst($action)))  {
@@ -833,8 +833,8 @@ class tables extends module {
 			$query = "
 				SELECT T.TABLE_NAME
 				FROM _TABLE_INFO I
-				JOIN INFORMATION_SCHEMA.TABLES T ON I.TABLE_NAME = T.TABLE_NAME
-				WHERE IFNULL(I.SLUG,I.TABLE_NAME) = ? AND T.TABLE_SCHEMA = ?";
+				RIGHT JOIN INFORMATION_SCHEMA.TABLES T ON I.TABLE_NAME = T.TABLE_NAME
+				WHERE IFNULL(I.SLUG,T.TABLE_NAME) = ? AND T.TABLE_SCHEMA = ?";
 			$params = array(
 				array("type" => "s", "value" => $table),
 				array("type" => "s", "value" => $db_name)
