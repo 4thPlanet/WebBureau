@@ -4,10 +4,12 @@ class users extends module {
 	protected $user_info;
 	private $rights;
 	public function __construct($user = array('ID'=>0)) {
+		
 		$this->user_info = $user;
 		$this->reload_rights();
 		$this->reload_groups();
 		$this->reload_theme();
+		
 	}
 	
 	public function is_group_member($group) {
@@ -16,7 +18,7 @@ class users extends module {
 	
 	public function reload_theme() {
 		global $db,$s_user;
-		if (static::current_user_is_guest()) {
+		if (empty($this->user_info['ID'])) {
 			$column = 'UT.SESSION_ID';
 			$params = array(
 				array("type" => "s", "value" => session_id())
