@@ -21,8 +21,8 @@ class themes extends module {
 				USER_ID int,
 				SESSION_ID varchar(32),
 				THEME_ID int,
-				INDEX(USER_ID),
-				INDEX(SESSION_ID),
+				UNIQUE(USER_ID),
+				UNIQUE(SESSION_ID),
 				FOREIGN KEY (USER_ID) REFERENCES _USERS(ID),
 				FOREIGN KEY (THEME_ID) REFERENCES _THEMES(ID)
 			);";
@@ -32,6 +32,31 @@ class themes extends module {
 		require_once(__DIR__ . '/Personal.Themes.Widget.php');
 		personal_theme_widget::install();
 		
+		return true;
+	}
+	
+	/* Sets user theme for current user.  In the future, a new parameter, $user = NULL, will be added for setting theme for a user other than the current user... */
+	protected static function set_user_theme($theme) {
+		global $db,$s_user;
+		if (!empty($theme)) {
+			$query = "
+				INSERT INTO _USERS_THEMES (USER_ID,SESSION_ID,THEME_ID) VALUES (?,?,?) ON DUPLICATE KEY UPDATE
+					THEME_ID = VALUES(THEME_ID)";
+			$params = array(
+				array("type" => "i", "value" => users::current_user_is_guest() ? NULL : $s_user->id()),
+				array("type" => "s", "value" => users::current_user_is_guest() ? session_id() : NULL),
+				array("type" => "i", "value" => $theme)
+			);
+			$db->run_query($query,$params);
+		} else {
+			$query = "DELETE FROM _USERS_THEMES WHERE (USER_ID = ? AND SESSION_ID IS NULL) OR (SESSION_ID = ? AND USER_ID IS NULL)";
+			$params = array(
+				array("type" => "i", "value" => users::current_user_is_guest() ? NULL : $s_user->id()),
+				array("type" => "s", "value" => users::current_user_is_guest() ? session_id() : NULL)
+			);
+			$db->run_query($query,$params);
+		}
+		$s_user->reload_theme();
 		return true;
 	}
 	
