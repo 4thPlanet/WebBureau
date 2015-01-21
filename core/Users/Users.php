@@ -7,11 +7,42 @@ class users extends module {
 		$this->user_info = $user;
 		$this->reload_rights();
 		$this->reload_groups();
+		$this->reload_theme();
 	}
 	
 	public function is_group_member($group) {
 		return (!empty($this->user_info['GROUPS'][$group]));
 	}
+	
+	public function reload_theme() {
+		global $db,$s_user;
+		if (static::current_user_is_guest()) {
+			$column = 'UT.SESSION_ID';
+			$params = array(
+				array("type" => "s", "value" => session_id())
+			);
+		}
+		else {
+			$column = 'UT.USER_ID';
+			$params = array(
+				array("type" => "i", "value" => $this->user_info['ID'])
+			);
+		}
+		$query = "
+			SELECT T.ID, T.NAME, M.CLASS_NAME, CASE IFNULL(STYLE,'') WHEN '' THEN 0 ELSE 1 END AS HAS_STYLESHEET
+			FROM _THEMES T
+			JOIN _MODULES M ON T.MODULE_ID = M.ID
+			LEFT JOIN _USERS_THEMES UT ON T.ID = UT.THEME_ID
+			WHERE ($column = ? AND UT.THEME_ID IS NOT NULL) OR T.IS_DEFAULT = 1
+			ORDER BY T.IS_DEFAULT
+			LIMIT 1
+		";
+		$result = $db->run_query($query,$params);
+		if (empty($result)) $this->user_info['THEME'] = null;
+		else $this->user_info['THEME'] = $result[0];
+	}
+	
+	public function get_theme() {return $this->user_info['THEME'];}
 	
 	public function reload_groups() {
 		global $db;
@@ -83,7 +114,9 @@ class users extends module {
 	}
 	
 	public static function get_session_user() {
-		if (isset($_SESSION['users']['user'])) return $_SESSION['users']['user'];
+		global $s_user;
+		if (isset($s_user)) return $s_user;
+		elseif (isset($_SESSION['users']['user'])) return $_SESSION['users']['user'];
 		else {
 			$_SESSION['users']['user'] = new users();
 			return $_SESSION['users']['user'];
@@ -92,6 +125,11 @@ class users extends module {
 	
 	public static function current_user_is_guest() {
 		global $s_user;
+	//	echo "current_user_is_guest() called, s_user = " . var_export($s_user,true) ;
+	//	var_export(isset($s_user));
+	//	var_export($s_user->user_info['ID']==0);
+		
+		if (!isset($s_user)) return true;
 		if ($s_user->user_info['ID']==0) return true;
 		else return false;
 	}

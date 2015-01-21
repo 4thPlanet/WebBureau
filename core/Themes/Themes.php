@@ -21,12 +21,17 @@ class themes extends module {
 				USER_ID int,
 				SESSION_ID varchar(32),
 				THEME_ID int,
-				PRIMARY KEY (USER_ID,SESSION_ID),
+				INDEX(USER_ID),
 				INDEX(SESSION_ID),
 				FOREIGN KEY (USER_ID) REFERENCES _USERS(ID),
 				FOREIGN KEY (THEME_ID) REFERENCES _THEMES(ID)
 			);";
 		$db->run_query($query);
+		
+		/* Install widgets... */
+		require_once(__DIR__ . '/Personal.Themes.Widget.php');
+		personal_theme_widget::install();
+		
 		return true;
 	}
 	
@@ -236,7 +241,9 @@ class themes extends module {
 	}
 	
 	public static function required_rights() {
-		return array(
+		global $db;
+		
+		$rights = array(
 			'Themes' => array(
 				'Administration' => array(
 					'Set Default Theme' => array(
@@ -257,30 +264,39 @@ class themes extends module {
 					)
 				),
 				'Selection' => array(
-					'ALL Custom Themes' => array(
-						'description' => 'Allows user to view ALL themes, and select one for their personal use.',
+					'Choose Custom Theme' => array(
+						'description' => 'Allows user to pick a theme other than the site default.',
+						'default_groups' => array('Admin','Registered User')
+					),
+					'View All Custom Themes' => array(
+						'description' => 'Allows user to view ALL themes installed on the site.',
 						'default_groups' => array('Admin')
 					)
 					/* TODO: Add dynamic section to view each theme individually */
 				)
 			)
 		);
+		
+		/* Now get each individual theme and create a right to select it... */
+		$query = "SELECT NAME FROM _THEMES";
+		$themes = $db->run_query($query);
+		if (!empty($themes))
+			foreach($themes as $theme)
+				$rights['Themes']['Selection']["View {$theme['NAME']} Theme"] = array(
+					'description' => "Allows user to select the {$theme['NAME']} theme over the default theme.",
+					'default_groups' => array('Admin','Registered User')
+				);
+		return $rights;
 	}
 	
 	/* This function will display the actual page... */
 	public static function view_page() {
-		global $db;
-		$query = "
-			SELECT T.ID, T.NAME, M.CLASS_NAME, CASE WHEN IFNULL(T.STYLE,'') = '' THEN 0 ELSE 1 END as HAS_STYLESHEET
-			FROM _THEMES T
-			JOIN _MODULES M ON T.MODULE_ID = M.ID
-			WHERE T.IS_DEFAULT = 1";
-		$result = $db->run_query($query);
-		if (empty($result)) {
+		global $db,$s_user;
+		$theme = $s_user->get_theme();
+		if (empty($theme)) {
 			layout::setup_page();
 			return;
 		}
-		$theme = $result[0];
 		$css = $theme['HAS_STYLESHEET'] ? array(static::get_module_url() . "css/{$theme['ID']}-".make_url_safe($theme['NAME']).".css") : array();
 		call_user_func_array(
 			array($theme['CLASS_NAME'],'setup_page'),

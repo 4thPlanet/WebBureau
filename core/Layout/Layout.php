@@ -303,10 +303,13 @@ class layout extends module {
 		<title><?echo $page_title?></title>
 		<link rel="stylesheet" type="text/css" href="<?echo $local;?>style/style.css" />
 		<? if (!empty($initial)) {
-			if (!empty($initial['script'])) foreach($initial['script'] as $script)
-				if (filter_var(url_protocol_check($script),FILTER_VALIDATE_URL))
-					echo "<script type='text/Javascript' src='$script'></script>";
-				else echo "<script type='text/Javascript'>$script</script>";
+			if (!empty($initial['script'])) {
+				foreach($initial['script'] as $script) {
+					if (filter_var(url_protocol_check($script),FILTER_VALIDATE_URL))
+						echo "<script type='text/Javascript' src='$script'></script>";
+					else echo "<script type='text/Javascript'>$script</script>";
+				}
+			} else $initial['script'] = array();
 			if (!empty($initial['css'])) { 
 				foreach($initial['css'] as $css) {
 					if (filter_var(url_protocol_check($css), FILTER_VALIDATE_URL)) 
@@ -318,7 +321,7 @@ class layout extends module {
 			if (!empty($initial['meta'])) foreach($initial['meta'] as $key=>$value) 
 				echo "<meta name='$key' content='$value' />";
 		} else {
-			$initial = array('css' => array());
+			$initial = array('css' => array(),'script' => array());
 		}
 		$loaded_sources = $initial;
 		foreach($area_content as $area=>$content) {
