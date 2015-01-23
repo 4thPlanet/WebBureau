@@ -175,7 +175,8 @@ if (empty($_POST['username'])) {
 	$idx=0;
 	foreach($module_files as $module_info_file) {
 		$every_module[$idx] = json_decode(file_get_contents($module_info_file),true);
-		$every_module[$idx]['Filename'] = dirname($module_info_file) . "/{$every_module[$idx]['Filename']}" ;
+		if (is_null($every_module[$idx])) die("Invalid .module file.  Please see $module_info_file and fix.");
+		$every_module[$idx]['Directory'] = dirname($module_info_file) . "/" ;
 		$idx++;
 	}
 	/* Sort by in order of what is required first... */

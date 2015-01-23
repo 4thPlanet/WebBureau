@@ -44,7 +44,7 @@ class module {
 			array("type" => "s", "value" => $info['Module']),
 			array("type" => "s", "value" => $info['Description']),
 			array("type" => "s", "value" => $info['Core']),
-			array("type" => "s", "value" => $info['Filename']),
+			array("type" => "s", "value" => $info['Directory'] . $info['Filename']),
 			array("type" => "s", "value" => $info['Class'])
 		);
 		$db->run_query($query,$params);
@@ -63,8 +63,25 @@ class module {
 				array_push($params,array("type" => "s", "value" => $required));
 			$db->run_query($query,$params);
 		}
+		if (!empty($info['Helpers'])) {
+			$query = "
+				INSERT INTO _MODULES_HELPERS (MODULE_ID,HELPER_ID,FILENAME,CLASS_NAME) 
+				SELECT ?,H.ID,?,?
+				FROM _HELPERS H
+				WHERE TYPE = ?";
+			foreach($info['Helpers'] as $type=>$helper) {
+				/* Save Helper... */
+				$params = array(
+					array("type" => "i", "value" => $mod_id),
+					array("type" => "s", "value" => $info['Directory'] . $helper['File']),
+					array("type" => "s", "value" => $helper['Class']),
+					array("type" => "s", "value" => $type)
+				);
+				$db->run_query($query,$params);
+			}
+		}
 		
-		require_once($info['Filename']);
+		require_once($info['Directory'].$info['Filename']);
 		
 		/* Run any commands specific for this module's installation... */
 		call_user_func_array(array($info['Class'],'install'),array());
@@ -122,7 +139,28 @@ class module {
 				FOREIGN KEY (REQUIRED_MODULE_ID) REFERENCES _MODULES(ID)
 			)";
 		$db->run_query($query);
-		
+		$query = "
+			CREATE TABLE IF NOT EXISTS _HELPERS (
+				ID int AUTO_INCREMENT,
+				TYPE varchar(32),
+				METHOD_NAME varchar(32),
+				FALLBACK_METHOD varchar(32),
+				PRIMARY KEY (ID)
+			);";
+		$db->run_query($query);
+		$query = "INSERT INTO _HELPERS (TYPE,METHOD_NAME,FALLBACK_METHOD) VALUES ('admin','view','admin'),('post','post','post'),('ajax','view','ajax')";
+		$db->run_query($query);
+		$query = "
+			CREATE TABLE IF NOT EXISTS _MODULES_HELPERS (
+				MODULE_ID int,
+				HELPER_ID int,
+				FILENAME varchar(200),
+				CLASS_NAME varchar(100),
+				PRIMARY KEY (MODULE_ID,HELPER_ID),
+				FOREIGN KEY (MODULE_ID) REFERENCES _MODULES (ID),
+				FOREIGN KEY (HELPER_ID) REFERENCES _HELPERS (ID)
+			);";
+		$db->run_query($query);
 		$query = "CREATE TABLE IF NOT EXISTS _WIDGETS (
 			ID int AUTO_INCREMENT,
 			MODULE_ID int,
@@ -212,6 +250,42 @@ class module {
 		$module = $db->run_query($query,$params);
 		return "{$local}{$module[0]['NAME']}";
 	}
+	
+	/* returns helper classes used by a given module ID... If type specified, will only return helper information for that type */
+	public static function get_module_helpers($module,$type = '') {
+		global $db;
+
+		if (empty($type)) {
+			$helper_join = '1=1';
+			$params = array();
+		} else {
+			$helper_join = 'TYPE = ?';
+			$params = array(
+				array("type" => "s", "value" => $type)
+			);
+		}
+		
+		$query = "
+			SELECT H.TYPE,IFNULL(MH.CLASS_NAME,M.CLASS_NAME) as CLASS_NAME, 
+				CASE WHEN MH.MODULE_ID IS NULL THEN H.FALLBACK_METHOD ELSE H.METHOD_NAME END AS METHOD_NAME
+			FROM _MODULES M
+			JOIN _HELPERS H ON $helper_join
+			LEFT JOIN _MODULES_HELPERS MH ON H.ID = MH.HELPER_ID AND M.ID = MH.MODULE_ID
+			WHERE M.ID = ?";
+		array_push($params,array("type" => "i", "value" => $module));
+		return group_numeric_by_key($db->run_query($query,$params),'TYPE');
+	}
+	/* returns module id, given the name of the module */
+	public static function get_module_id($module) {
+		global $db;
+		$query = "SELECT ID FROM _MODULES WHERE NAME = ?";
+		$params = array(
+			array("type" => "s", "value" => $module)
+		);
+		$result = $db->run_query($query,$params);
+		if (empty($result)) return false;
+		else return $result[0]['ID'];
+	}
 	/* returns information about the module called, using the args array as a reference*/
 	public static function get_module(&$args) {
 		global $db;
@@ -229,14 +303,25 @@ class module {
 			array("type" => "s", "value" => $slug)
 		);
 		$module = $db->run_query($query,$params);
-		if (!empty($module)) return $module[0];
+		if (!empty($module)) {
+			$module = $module[0];
+			/* Get Helper Classes */
+			unset($module['pref']);
+			$module['helpers'] = static::get_module_helpers($module['ID']);
+			
+			return $module;
+		}
 		if (!empty($slug)) array_unshift($args,$slug);
 		$params = array(
 			array("type" => "s", "value" => ""),
 			array("type" => "s", "value" => "")
 		);
 		$module = $db->run_query($query,$params);
-		return (empty($module) ? false : $module[0] );
+		if (empty($module)) return false;
+		$module = $module[0];
+		unset($module['pref']);
+		$module['helpers'] = static::get_module_helpers($module['ID']);
+		return $module;
 	}
 	
 	/* Returns the class used for a given module... */

@@ -4,5 +4,11 @@
 	"Core" : 1,
 	"Filename" : "Layout.php",
 	"Class" : "layout",
-	"Requires" : ["Users"]
+	"Requires" : ["Users"],
+	"Helpers" : {
+		"admin" : {
+			"File" : "Layout.admin.php",
+			"Class" : "layout_admin"
+		}
+	}
 }

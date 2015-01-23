@@ -4,5 +4,11 @@
 	"Core" : 1,
 	"Filename" : "Themes.php",
 	"Class" : "themes",
-	"Requires" : ["Users", "Layout"]
+	"Requires" : ["Users", "Layout"],
+	"Helpers" : {
+		"admin" : {
+			"File": "Themes.admin.php",
+			"Class" : "themes_admin"
+		}
+	}
 }

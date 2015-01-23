@@ -26,7 +26,7 @@
     if (array_key_exists('ajax',$_REQUEST)) {
 		if (empty($_REQUEST['widget_id'])) {
 			$module = module::get_module($_GET['args']);
-			exit(json_encode(call_user_func_array(array($module['CLASS_NAME'],'ajax'),array($_GET['args'],$_REQUEST))));
+			exit(json_encode(call_user_func_array(array($module['helpers']['ajax']['CLASS_NAME'],$module['helpers']['ajax']['METHOD_NAME']),array($_GET['args'],$_REQUEST))));
 		} else {
 			/* specific to a given widget... */
 			exit(json_encode(call_user_func_array(array('module','widget'),array($_REQUEST['widget_id'],true,$_REQUEST))));
@@ -36,7 +36,7 @@
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$args = $_GET['args'];
 		$module = module::get_module($args);
-		call_user_func_array(array($module['CLASS_NAME'],'post'),array($args,$_POST));
+		call_user_func_array(array($module['helpers']['post']['CLASS_NAME'],$module['helpers']['post']['METHOD_NAME']),array($args,$_POST));
 	}
     themes::view_page();
     return;

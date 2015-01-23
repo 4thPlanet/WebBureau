@@ -4,5 +4,11 @@
 	"Core" : 1,
 	"Filename" : "Menu.php",
 	"Class" : "menu",
-	"Requires" : ["Users"]
+	"Requires" : ["Users"],
+	"Helpers" : {
+		"admin" : {
+			"File": "Menu.admin.php",
+			"Class" : "menu_admin"
+		}
+	}
 }

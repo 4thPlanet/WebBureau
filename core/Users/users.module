@@ -4,5 +4,12 @@
 	"Core" : 1,
 	"Filename" : "Users.php",
 	"Class" : "users",
-	"Requires" : []
+	"Requires" : [],
+	"Helpers" : {
+		"admin" : {
+			"File" : "Users.admin.php",
+			"Class" : "users_admin"
+		}
+	
+	}
 }

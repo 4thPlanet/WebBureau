@@ -24,7 +24,7 @@ class modules extends module {
 				$info_files = recursive_glob('*.module',$location);
 				foreach($info_files as $info_file) {
 					$module_info = json_decode(file_get_contents($info_file),true);
-					$module_info['Filename'] = dirname($info_file) . "/{$module_info['Filename']}";
+					$module_info['Directory'] = dirname($info_file) . "/";
 					/* Confirm no dependencies... */
 					if (!empty($module_info['Requires'])) {
 						$query = "
@@ -50,9 +50,11 @@ class modules extends module {
 		} else {
 			$module = array_shift($args);
 			if (!$user->check_right('Modules','Administer', "Administer $module")) return false;
+			$helper = module::get_module_helpers(module::get_module_id($module),'admin');
+			
 			$class_name = module::get_module_class($module);
 			if ($class_name===false) return false;
-			return call_user_func_array(array($class_name,'admin_post'),array($args,$request));
+			return call_user_func_array(array($helper['admin']['CLASS_NAME'],'post'),array($args,$request));
 		}
 	}
 	
@@ -71,10 +73,9 @@ class modules extends module {
 		} else {
 			$module = array_shift($args);
 			if (!$user->check_right('Modules','Administer',"Administer $module")) return false;
-			$class_name = module::get_module_class($module);
-			if ($class_name===false) return false;
+			$helpers = module::get_module_helpers(module::get_module_id($module),'admin');
 			/* Return the ajax() function of that module... */
-			return call_user_func_array(array($class_name,'ajax'),array($args,$request));
+			return call_user_func_array(array($helpers['admin']['CLASS_NAME'],'ajax'),array($args,$request));
 		}
 	}
 	
@@ -158,8 +159,6 @@ class modules extends module {
 		
 		$args = func_get_args();
 		if (empty($args)) {
-			
-			
 			return static::view_main();
 		}
 			
@@ -172,19 +171,14 @@ class modules extends module {
 				return;
 			}
 
-			$query = "SELECT CLASS_NAME FROM _MODULES WHERE NAME = ?";
-			$params = array(
-				array("type" => "s", "value" => $module)
-			);
-			$result = $db->run_query($query,$params);
-			if (empty($result)) {
+			$helper = module::get_module_helpers(module::get_module_id($module),'admin');
+			if (empty($helper)) {
 				header("Location: " . static::get_module_url());
 				exit();
 				return;
 			}
-			$class_name = $result[0]['CLASS_NAME'];
 			/* Return the admin() function of that module... */
-			return call_user_func_array(array($class_name,'admin'),$args);
+			return call_user_func_array(array($helper['admin']['CLASS_NAME'],$helper['admin']['METHOD_NAME']),$args);
 		}
 			
 	}

@@ -6,7 +6,8 @@ function module_widget_autoload($class) {
 	$query = "
 		SELECT FILENAME FROM (
 		SELECT FILENAME,CLASS_NAME FROM _MODULES UNION
-		SELECT FILENAME,CLASS_NAME FROM _WIDGETS
+		SELECT FILENAME,CLASS_NAME FROM _WIDGETS UNION
+		SELECT FILENAME,CLASS_NAME FROM _MODULES_HELPERS
 		) FILES
 		WHERE CLASS_NAME = ?";
 	$params = array(
@@ -14,7 +15,7 @@ function module_widget_autoload($class) {
 	);
 	$result = $db->run_query($query,$params);
 	if (empty($result)) return false;
-	require_once($result[0]['FILENAME']);
+	require($result[0]['FILENAME']);
 }
 spl_autoload_register('module_widget_autoload');
 
@@ -370,6 +371,7 @@ function create_random_string($string, $length=0) {
  ** $key - The new key to use
  */
 function group_numeric_by_key($narr,$key) {
+	if (empty($narr)) return;
 	$arr = array();
 	$depth = 0;
 	foreach($narr as $idx=>$val) {
