@@ -118,7 +118,7 @@ if (empty($_POST['username'])) {
 		</form>
 	</body>
 </html>
-<? } else {
+<?php } else {
 	/* Check if existing DB or new DB... */
 	if (!empty($_POST['new_db'])) {
 		$db = new mysqli($_POST['db_location'], $_POST['admin_user'], $_POST['admin_password']);
@@ -132,7 +132,7 @@ if (empty($_POST['username'])) {
 	} 
 	/* Now create ClientData.php */
 	$clientData = '
-<?php
+<'.'?php
 	require_once(__DIR__ . "/Database.php");
 	class clientData extends Database {
         protected static $db_pass = "'.str_replace('"','\"',$_POST['db_password']).'";
@@ -144,7 +144,7 @@ if (empty($_POST['username'])) {
             return $this::$db_name;
         }
     }
-?>';
+?'.'>';
 	if (!@file_put_contents('includes/ClientData.php',$clientData)) {
 		die('Unable to write to ClientData.php.  Check write permissions. Current User = ' . exec('whoami'));
 	}
@@ -162,7 +162,7 @@ if (empty($_POST['username'])) {
 	<head>
 		<title>Installing system...</title>
 	</head>
-	<body><?
+	<body><?php
 	/* First install the core module module... */
 	echo "Installing the base module...<br />";
 	module::install();
