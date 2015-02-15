@@ -161,9 +161,9 @@ class layout extends module {
 ?><!DOCTYPE html>
 <html>
 	<head>
-		<title><?echo $page_title?></title>
-		<link rel="stylesheet" type="text/css" href="<?echo $local;?>style/style.css" />
-		<? if (!empty($initial)) {
+		<title><?php echo $page_title?></title>
+		<link rel="stylesheet" type="text/css" href="<?php echo $local;?>style/style.css" />
+		<?php if (!empty($initial)) {
 			if (!empty($initial['script'])) {
 				foreach($initial['script'] as $script) {
 					if (filter_var(url_protocol_check($script),FILTER_VALIDATE_URL))
@@ -204,7 +204,9 @@ class layout extends module {
 				/* No need to search for duplicate metas as they overwrite themselves already... */
 				echo "<meta name='$key' content='$value' />";
 			}
-		}?>
+		}
+		echo "<!-- ".print_r($area_content,true)."-->";
+		?>
 	</head>
 	<body>
 		<div id="container">
@@ -215,9 +217,9 @@ class layout extends module {
 					<div class="widget <?echo $content['widgets'][$idx]['class'];?>" widget-id="<?echo $content['widgets'][$idx]['ID'];?>">
 						<?php echo $widget ?>
 					</div>
-					<? } ?>
+					<?php } ?>
 				</div>
-				<? } ?>
+				<?php } ?>
 			</div>
 		</div>
 	</body>
