@@ -8,6 +8,153 @@
  define('PREVIEW_DISPLAY',2);
  define('FULL_DISPLAY',3);
 class tables extends module {
+	
+	/* The columns and primary key of a table object... */
+	protected $table_name;
+	protected $columns;
+	protected $PK;
+	protected $id;
+	
+	/* constructor */
+	public function __construct($table,$id = null) {
+		/* Confirm table is real, then load table columns and primary key... */
+		if (static::is_table($table)) {
+			$this->table_name = $table;
+			$this->columns = static::get_table_columns($table);
+			$this->PK = static::get_primary_key($table);
+			$this->id = $id;
+		}
+	}
+	
+	public function set_id($id) {
+		/* Sets table id to $id*/
+		$this->id = $id;
+	}
+	
+	/*
+	 * Returns all records in table.
+	 * If $id is set, only returns the one record...
+	 * */
+	public function get_records() {
+		global $db;
+		if (empty($this->table_name)) return false;
+		$query = "SELECT * FROM {$this->table_name}";
+		if (empty($this->id))
+			return $db->run_query($query);
+		else {
+			$params = array();
+			$query .= " WHERE ";
+			$key_cond = array();
+			foreach($this->PK as $idx=>$key) {
+				$key_cond[] = "{$key['COLUMN_NAME']} = ?";
+				array_push($params,array("type" => "s", "value" => $this->id[$idx]));
+			}
+			$query .= implode(" AND ",$key_cond);
+			$result = $db->run_query($query,$params);
+			if (empty($result)) return false;
+			else return $result[0];
+		}
+	}
+	
+	public function save($data) {
+		global $db;
+		
+		if (empty($this->id)) {
+			$query = "INSERT INTO {$this->table_name} ( ";
+			$params = array();
+			$cols = array();
+			foreach($this->columns as $column) {
+				if ($column['IS_AUTO_INCREMENT']) continue;
+				$cols[] = $column['COLUMN_NAME'];
+				array_push(
+					$params,
+					array("type" => "s", "value" => $data[$column['COLUMN_NAME']])
+				);
+				Database::param_type_check($column['DATA_TYPE'],$params[count($params)-1]['type']);
+			}
+			$query .= implode(",",$cols) . ") VALUES ( ".substr(str_repeat("?,",count($params)),0,-1) ." )";
+		} else {
+			$query = "UPDATE {$this->table_name} SET ";
+			$sets = array();
+			$params = array();
+			foreach($columns as $column) {
+				$sets[] = "{$column['COLUMN_NAME']} = ?";
+				array_push(
+					$params,
+					array("type" => "s", "value" => $data[$column['COLUMN_NAME']])
+				);
+				Database::param_type_check($column['DATA_TYPE'],$params[count($params)-1]['type']);
+			}
+			$query .= implode(", ",$sets) . " WHERE ";
+			
+			if (count($this->PK)==1) {
+				$query .= "{$PK[0]['COLUMN_NAME']} = ?";
+				array_push(
+					$params,
+					array("type" => "s", "value" => $this->id)
+				);
+			} elseif (count($this->PK)==count($id)) {
+				$key_cond = array();
+				foreach($PK as $idx=>$key) {
+					$key_cond[] = "{$key['COLUMN_NAME']} = ?";
+						array_push(
+						$params,
+						array("type" => "s", "value" => $this->id[$idx])
+					);
+				}
+				$query .= implode(" AND ",$key_cond);
+			} else {
+				return false;
+			}
+			$db->run_query($query,$params);
+			if (is_null($this->id)) {
+				return $db->get_inserted_id();
+			} else {
+				return true;
+			}
+		}
+	}
+	
+	public function get_columns() {
+		return $this->columns;
+	}
+	
+	public function get_key() {
+		return $this->PK;
+	}
+	
+	
+	public static function is_table($table) {
+		global $db;
+		/* Returns true if table is a table... */
+		$query = "
+			SELECT CASE COUNT(*) WHEN 0 THEN 0 ELSE 1 END AS is_table
+			FROM INFORMATION_SCHEMA.TABLES T
+			WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?";
+		$params = array(
+			array("type" => "s", "value" => $db->get_db_name()),
+			array("type" => "s", "value" => $table)
+		);
+		$result = $db->run_query($query,$params);
+		return $result[0]['is_table']==true;
+	}
+	
+	/* Returns all tables Session User has rights to view... */
+	public static function get_users_viewable_tables() {
+		global $db,$s_user;
+		$query = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ?";
+		$params = array(
+			array("type" => "s", "value" => $db->get_db_name())
+		);
+		$tables = group_numeric_by_key($db->run_query($query,$params),'TABLE_NAME');
+		foreach($tables as $idx=>$table) {
+			if (!$s_user->check_right('Tables',$table,'View')) unset($tables[$idx]);
+		}
+		return $tables;
+	}
+	
+	
+	
 	/* Returns a multi-dimensional array of menu options for this module (including sub-menus) */
 	public static function menu() {
 		global $db;
@@ -269,6 +416,18 @@ class tables extends module {
 		return array('concat' => $condition, 'params' => $params);
 	}
 	
+	/* Saves $data to $table. 
+	 * 
+	 * @param $table - The Table (not slug) to save to.
+	 * @param $data - The data being saved.  Must match table columns exactly.
+	 * @param $id - The existing primary key.  Blank if inserting new record
+	 * 
+	 * @return boolean - True on success, false on error.
+	 * */
+	public static function save_record($table,$data,$id) {
+		
+	}
+	
 	public static function edit_record_submit($table,$id,$before,$after) {
 		global $local, $db;
 		$table_info = static::get_table_columns($table);
@@ -342,126 +501,6 @@ class tables extends module {
 		exit();
 		return;
 		
-	}
-	
-	public static function edit_record($table, $id,$data) {
-		global $local, $db;
-		$output = array('html' => '', 'script' => array(
-			"{$local}script/jquery.min.js",
-			"{$local}script/ckeditor/ckeditor.js",
-			"{$local}script/ckeditor/adapters/jquery.js",
-			'$(function() {
-				$("textarea").each(function() {
-					CKEDITOR.replace($(this).attr("ID"));
-					});
-				})'
-		), 'css' => array());
-		$table_info = static::get_table_columns($table);
-		$action = 'edit';
-		if (empty($data)) {
-			$action = 'add';
-			foreach($table_info as $column) {
-				$data[$column['COLUMN_NAME']] = '';
-			}
-		}
-		$output['title'] = ucfirst($action) . " table record...";
-		$output['html'] .= "
-			<form action='".static::get_module_url()."$table/$id/$action/submit' method='post'>
-			<table>
-				<thead>
-					<tr>
-						<th>Field</th>
-						<th>Null?</th>
-						<th>Value</th>
-					</tr>
-				</thead>
-				<tbody>";
-		foreach($table_info as $idx=>$column) {
-			if ($column['IS_AUTO_INCREMENT']) continue;
-			$output['html'] .= "
-					<tr>
-						<td>{$column['COLUMN_NAME']}</td>";
-			if (in_array($column['DATA_TYPE'], array('bit','boolean'))) {
-				/* input type = checkbox */
-				$checked = $data[$column['COLUMN_NAME']] ? "checked='checked'" : '';
-				$input = "<input type='checkbox' value='1' id='col$idx' name='col$idx' $checked />";
-			} elseif (strcmp($column['DATA_TYPE'],'text')==0) {
-				/* input type = textarea */
-				$input = "<textarea id='col$idx' name='col$idx'>{$data[$column['COLUMN_NAME']]}</textarea>";
-			} elseif (!empty($column['REFERENCED_TABLE_NAME'])) {
-				$concat = static::sql_decode_display($column['REFERENCED_TABLE_NAME']);
-				$pk = static::get_primary_key($table)[0]['COLUMN_NAME'];
-				$query = "SELECT $pk as PK, {$concat['concat']} as DISPLAY
-					FROM {$column['REFERENCED_TABLE_NAME']}";
-				$params = $concat['params'];
-				$options = $db->run_query($query,$params);
-				$input = "<select id='col$idx' name='col$idx'>
-							<option value=''></option>";
-				if (!empty($options))
-					foreach($options as $option) {
-						$selected = ($option['PK']==$data[$column['COLUMN_NAME']]) ? "selected='selected'" : '';
-						$input.= "<option value='{$option['PK']}' $selected >{$option['DISPLAY']}</option>";
-					}
-			} else {
-				/* basic input */
-				/* Still TODO: character max len check*/
-				$class = array();
-				if ($column['DATA_TYPE']=='datetime') {
-					$class[] = 'datetimepicker';
-					array_push(
-						$output['script'],
-						"{$local}script/jquery-ui.min.js",
-						'https://raw.githubusercontent.com/trentrichardson/jQuery-Timepicker-Addon/master/src/jquery-ui-timepicker-addon.js',
-						'$(function() {
-							$(".datetimepicker").datetimepicker();
-						});'
-						);
-					array_push(
-						$output['css'] ,
-						'//ajax.googleapis.com/ajax/libs/jqueryui/1.10.4/themes/smoothness/jquery-ui.css',
-						"{$local}style/timepicker.css"
-					);
-				}
-				$class = implode(" ",$class);
-				if (!empty($data[$column['COLUMN_NAME']]))
-					$data[$column['COLUMN_NAME']] = make_html_safe($data[$column['COLUMN_NAME']],ENT_QUOTES);
-				$input = "<input class='$class' id='col$idx' name='col$idx' value='{$data[$column['COLUMN_NAME']]}' />";
-			}
-			if (is_null($data[$column['COLUMN_NAME']])) $is_null = "checked='checked'";
-			else $is_null = "";
-			if ($column['IS_NULLABLE']) $null = "<input class='null' type='checkbox' value='1' id='col{$idx}_null' name='col{$idx}_null' title='Click here to make this value null.' $is_null/>";
-			else $null = "";
-			$output['html'] .= "
-						<td>$null</td>
-						<td>$input</td>
-					</tr>
-			";
-		}
-		$output['html'] .="
-					<tr>
-						<td colspan='100%'>
-							<a href='".static::get_module_url()."$table/' title='Cancels changes and returns to table view.'>Cancel</a>
-							<input type='submit' value='Save record' />
-						</td>
-					</tr>
-				</tbody>
-			</table>
-			</form>";
-		$output['script'][] = "{$local}script/jquery.min.js";
-		$output['script'][] = '$(function() {
-	$(".null").click(function() {
-		if ($(this).not(":checked").length) return;
-		id = $(this).attr("id");
-		id = id.substring(0,id.length-5);
-		$("#" + id).val("");
-	});
-	$(":input").on("change keyup click",function() {
-		if ($(this).val() == "") return;
-		id = $(this).attr("id");
-		$("#" + id + "_null").removeAttr("checked");
-	});
-})';
-		return $output;
 	}
 	
 	public static function delete_record($table,$data) {
@@ -818,7 +857,6 @@ class tables extends module {
 		static::edit_record_submit($args[0],$args[1],$data,$post);
 	}
 	
-	public static function admin($table='', $id='', $action = '') {return static::view($table,$id,$action);}
 	public static function view($table='', $id='', $action = '') {
 		global $db,$local;
 		$db_name = $db->get_db_name();

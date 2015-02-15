@@ -5,5 +5,11 @@
 	"Filename" : "Tables.php",
 	"Class" : "tables",
 	"Requires" : ["Users"],
-	"Install Order" : 900
+	"Install Order" : 900,
+	"Helpers" : {
+		"admin" : {
+			"File" : "Tables.admin.php",
+			"Class" : "tables_admin"
+		}
+	}
 }
