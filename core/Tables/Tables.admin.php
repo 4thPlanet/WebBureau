@@ -5,7 +5,31 @@ class tables_admin extends tables {
 	public static function ajax($args,$request) {}
 	
 	public static function post($args,$request) {
-		return static::save_record($args[0],$args[1],$request);
+		$table_name = array_shift($args);
+		$table = new Tables($table_name);
+		if (!empty($args)) {
+			$id = array_shift($args);
+			$table->set_id($id);
+		}	
+		/* Before we save the data, we need to map the request data to actual columns... */
+		$columns = $table->get_columns();
+		$data = array();
+		foreach($columns as $idx=>$column) {
+			if ($column['IS_AUTO_INCREMENT']) continue;
+			$data[$column['COLUMN_NAME']] = $request["col$idx"];
+		}
+		$result = $table->save($data);
+		if ($result===false) {
+			Layout::set_message('Unable to save table data.  Please try again.','error');
+		} else {
+			Layout::set_message('Table data successfully saved.','info');
+			if (empty($id)) {
+				header("Location: " . static::get_module_id() . "$table_name/$result");
+				exit();
+				return;
+			}
+		}
+		
 	}
 	
 	public static function view($table='',$id='',$action='') {
@@ -69,6 +93,16 @@ class tables_admin extends tables {
 					$row[$column['COLUMN_NAME']] = "<a href='".static::get_module_url() . "$table_name/".make_url_safe($row[$column['COLUMN_NAME']])."'>{$row[$column['COLUMN_NAME']]}</a>";
 				}
 				/* Still TODO: Check if FOREIGN KEY... */
+				if (!empty($column['REFERENCED_TABLE_NAME']) && !empty($column['REFERENCED_COLUMN_NAME'])) {
+					/* Get Foreign Key SHORT Display */
+					$sql = static::sql_decode_display($column['REFERENCED_TABLE_NAME']);
+					$query = "SELECT {$sql['concat']} as display FROM {$column['REFERENCED_TABLE_NAME']} WHERE {$column['REFERENCED_COLUMN_NAME']} = ?";
+					$params = $sql['params'];
+					array_push($params,array("type" => "s", "value" => $row[$column['COLUMN_NAME']]));
+					$result = $db->run_query($query,$params);
+					if (!empty($result)) $row[$column['COLUMN_NAME']] = $result[0]['display'];
+				
+				}
 				$output['html'] .= "<td>{$row[$column['COLUMN_NAME']]}</td>";
 			}
 			$output['html'] .= "
@@ -109,7 +143,8 @@ class tables_admin extends tables {
 		}
 		$output['title'] = ucfirst($action) . " table record...";
 		$output['html'] .= "
-			<form action='".static::get_module_url()."$table_name/$id/$action/submit' method='post'>
+			<h3>".ucfirst($action)." table record...</h3>
+			<form action='".static::get_module_url()."$table_name/$id' method='post'>
 			<table>
 				<thead>
 					<tr>

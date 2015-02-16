@@ -58,7 +58,7 @@ class tables extends module {
 	
 	public function save($data) {
 		global $db;
-		
+
 		if (empty($this->id)) {
 			$query = "INSERT INTO {$this->table_name} ( ";
 			$params = array();
@@ -77,7 +77,8 @@ class tables extends module {
 			$query = "UPDATE {$this->table_name} SET ";
 			$sets = array();
 			$params = array();
-			foreach($columns as $column) {
+			foreach($this->columns as $column) {
+				if ($column['IS_AUTO_INCREMENT']) continue;
 				$sets[] = "{$column['COLUMN_NAME']} = ?";
 				array_push(
 					$params,
@@ -88,7 +89,7 @@ class tables extends module {
 			$query .= implode(", ",$sets) . " WHERE ";
 			
 			if (count($this->PK)==1) {
-				$query .= "{$PK[0]['COLUMN_NAME']} = ?";
+				$query .= "{$this->PK[0]['COLUMN_NAME']} = ?";
 				array_push(
 					$params,
 					array("type" => "s", "value" => $this->id)
