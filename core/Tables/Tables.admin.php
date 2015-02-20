@@ -16,7 +16,7 @@ class tables_admin extends tables {
 		$data = array();
 		foreach($columns as $idx=>$column) {
 			if ($column['IS_AUTO_INCREMENT']) continue;
-			$data[$column['COLUMN_NAME']] = $request["col$idx"];
+			$data[$column['COLUMN_NAME']] = empty($request["col{$idx}_null"]) ? $request["col$idx"] : null;
 		}
 		$result = $table->save($data);
 		if ($result===false) {
@@ -92,7 +92,6 @@ class tables_admin extends tables {
 					/* Primary key - make it a link... */
 					$row[$column['COLUMN_NAME']] = "<a href='".static::get_module_url() . "$table_name/".make_url_safe($row[$column['COLUMN_NAME']])."'>{$row[$column['COLUMN_NAME']]}</a>";
 				}
-				/* Still TODO: Check if FOREIGN KEY... */
 				if (!empty($column['REFERENCED_TABLE_NAME']) && !empty($column['REFERENCED_COLUMN_NAME'])) {
 					/* Get Foreign Key SHORT Display */
 					$sql = static::sql_decode_display($column['REFERENCED_TABLE_NAME']);
