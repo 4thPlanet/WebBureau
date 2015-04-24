@@ -43,11 +43,11 @@ class layout_main_content extends layout implements widget {
 		$output = call_user_func_array(array($module['CLASS_NAME'],'view'),$_GET['args']);
 		if (!array_key_exists('css',$output)) $output['css'] = array();
 		array_unshift($output['css'],"{$local}style/style.css");
-		if (!empty($_SESSION[__CLASS__]['message'])) {
-			foreach($_SESSION[__CLASS__]['message'] as $msg) {
+		if (!empty($_SESSION['layout']['message'])) {
+			foreach($_SESSION['layout']['message'] as $msg) {
 				$output['html'] = "<p class='{$msg['class']}'>{$msg['message']}</p>{$output['html']}";
 			}
-			unset($_SESSION[__CLASS__]['message']);
+			unset($_SESSION['layout']['message']);
 		}
 		
 		return $output;
