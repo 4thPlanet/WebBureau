@@ -57,6 +57,7 @@ function get_public_location($file) {
  ** $flags (optional) - flag to be passed to htmlspecialchars. See documentation at http://us2.php.net/htmlspecialchars for more information regarding this flag.
  */
 function make_html_safe($string, $flags=0) {
+	if (is_numeric($string) || empty($string) ) return $string;
 	if (is_string($string) || is_numeric($string) || empty($string)) {
 		return htmlspecialchars($string,$flags);
 	} else {
@@ -385,6 +386,34 @@ function group_numeric_by_key($narr,$key) {
 	return $arr;
 }
 
+/*
+ * A plural form of group_numeric_by_key.  Takes in an multidimensional array of data, and a list of keys to group by.
+ * If $list_last = true, the leaf of each array will be an array of the final key's values.
+ * 
+ * */
+function group_numeric_by_keys($arr,$keys,$list_last = false) {
+		$index = array();
+		$last_key = end($keys);
+		foreach($arr as &$sub) {
+			$current = &$index;
+			foreach($keys as $key) {
+				
+				$val = (!isset($sub[$key]) || is_null($sub[$key])) ? "" : $sub[$key];
+				$keys_left = array_keys($sub);
+				unset($sub[$key]);
+				if ($last_key != $key || !$list_last) {
+					if (empty($current[$val])) { $current[$val] = $sub; }
+					foreach($keys_left as $unset) {if (array_key_exists($unset,$current) && !is_array($current[$unset]))  unset($current[$unset]);}
+					$current = &$current[$val];
+				} else {
+					foreach($keys_left as $unset) {if (array_key_exists($unset,$current) && !is_array($current[$unset]))  unset($current[$unset]);}
+					$current[] = $val;
+				}
+			}
+		}
+		unset($current,$sub);
+		return $index;
+	}
 /*
  * Runs through $string, looking for substrings in the form $before$arr[idx]$after, and replaces this with $arr[idx]
  * Example: 

@@ -9,8 +9,33 @@ class tables_admin extends tables {
 		$table = new Tables($table_name);
 		if (!empty($args)) {
 			$id = array_shift($args);
-			$table->set_id($id);
-		}	
+		} else {
+			$id = null;
+		}
+		
+		switch($id) {
+			case 'meta':
+				$meta_table = new Tables('_TABLE_INFO');
+				$meta_columns = $meta_table->get_columns();
+				$meta_columns_data = array(
+					'meta' => $request['meta']
+				);
+				foreach($meta_columns as $column) {
+					if (!empty($request["{$column['COLUMN_NAME']}_null"]))
+						$meta_columns_data[$column['COLUMN_NAME']] = null;
+					elseif (isset($request[$column['COLUMN_NAME']]))
+						$meta_columns_data[$column['COLUMN_NAME']] = $request[$column['COLUMN_NAME']];
+				}
+				
+				$table->update_table_info($meta_columns_data);
+				Layout::set_message('Table meta data saved','success');
+				return;
+			case 'new':
+				break;
+			default:
+				$table->set_id($id);
+		}
+		
 		/* Before we save the data, we need to map the request data to actual columns... */
 		$columns = $table->get_columns();
 		$data = array();
@@ -22,9 +47,19 @@ class tables_admin extends tables {
 		if ($result===false) {
 			Layout::set_message('Unable to save table data.  Please try again.','error');
 		} else {
-			Layout::set_message('Table data successfully saved.','info');
-			if (empty($id)) {
-				header("Location: " . static::get_module_id() . "$table_name/$result");
+			Layout::set_message('Table data successfully saved.','success');
+			if ($result === true) {
+				return;
+			} elseif (!empty($result)) {
+				header("Location: " . static::get_module_url() . "$table_name/$result");
+				exit();
+				return;
+			} elseif ($id=='new') {
+				// String PK...
+				$PK = $table->get_key();
+				$PK = $PK[0]['COLUMN_NAME'];
+				$key = $data[$PK];
+				header("Location: " . static::get_module_url() . "$table_name/$key");
 				exit();
 				return;
 			}
@@ -37,6 +72,8 @@ class tables_admin extends tables {
 			return static::list_tables();
 		} elseif (empty($id)) {
 			return static::list_table_records($table);
+		} elseif ($id=='meta') {
+			return static::edit_table_meta($table);
 		} else {
 			return static::edit_record($table,$id,$action);
 		}
@@ -63,7 +100,7 @@ class tables_admin extends tables {
 	}
 	
 	protected static function list_table_records($table_name) {
-		global $db,$s_user;
+		global $local,$db,$s_user;
 		if (!$s_user->check_right('Tables',$table_name,'View')) {
 			header("Location: " . static::get_module_url());
 			exit();
@@ -71,10 +108,13 @@ class tables_admin extends tables {
 		}
 		$output = array('html' => "<h3>$table_name Administration</h3>");
 		$table = new Tables($table_name);
-		
+		$output['html'] .= "<p><a href='".static::get_module_url() . "$table_name/meta'>Click here to edit Table Info (Display, metas, etc.).</a></p>";
+		if ($s_user->check_right('Tables',$table_name,'Add'))
+			$output['html'] .= "<p><a href='".static::get_module_url() . "$table_name/new'>Add new record.</a></p>";
 		$output['html'] .= "<table>
 			<thead>
-				<tr>";
+				<tr>
+					<th></th>";
 		$columns = $table->get_columns();
 		foreach($columns as $column) {
 			$output['html'] .= "<th>{$column['COLUMN_NAME']}</th>";
@@ -87,6 +127,23 @@ class tables_admin extends tables {
 		foreach($records as $row) {
 			$output['html'] .= "
 				<tr>";
+				
+				$deleteLink = "";
+				$updateLink = "";
+				$PK = static::get_primary_key($table_name)[0]['COLUMN_NAME'];
+				$link = make_url_safe($row[$PK]);
+				if ($s_user->check_right('Tables',$table_name,'Delete'))
+					$deleteLink = "<a href='".static::get_module_url()."$table_name/$link/delete/' title='Click here to delete this row.'><img src='{$local}images/icon-delete.png' alt='Delete Row' /></a>";
+				if ($s_user->check_right('Tables',$table_name,'Edit'))
+					$updateLink = "<a href='".static::get_module_url()."$table_name/$link/edit/' title='Click here to edit this row.'><img src='{$local}images/icon-edit.png' alt='Edit Row' /></a>";
+				$output['html'] .= "
+				<td>
+					$updateLink
+					$deleteLink
+				</td>";
+				
+				
+				
 			foreach($columns as $column) {
 				if (strcmp($column['CONSTRAINT_NAME'],'PRIMARY')==0) {
 					/* Primary key - make it a link... */
@@ -115,8 +172,188 @@ class tables_admin extends tables {
 		return $output;
 	}
 	
-	public static function edit_record($table_name, $id) {
-		global $local, $db;
+	protected static function edit_table_meta($table_name) {
+		global $local,$db;
+		$output = array("html" => "<h3>$table_name Meta</h3>","css" => array(),'script' => array());
+		
+		array_push(
+			$output['script'],
+			"{$local}script/jquery.min.js",
+			"{$local}script/jquery-ui.min.js",
+			"{$local}script/ckeditor/ckeditor.js",
+			"{$local}script/ckeditor/adapters/jquery.js",
+			get_public_location(__DIR__ . '/js/table-metas.js')
+		);
+		
+		array_push(
+			$output['css'],
+			"{$local}style/jquery-ui.css",
+			get_public_location(__DIR__ . "/style/table-meta.css")
+		);
+		
+		$query = "
+			SELECT *
+			FROM _TABLE_INFO
+			WHERE TABLE_NAME = ?
+		";
+		$params = array(
+			array("type" => "s", "value" => $table_name)
+		);
+		$result = $db->run_query($query,$params);
+		if (!empty($result)) {
+			$table_info = make_html_safe($result[0],ENT_QUOTES);
+			if (!is_null($table_info['DETAILED_MENU_OPTIONS'])) $table_info['DETAILED_MENU_OPTIONS'] = $table_info['DETAILED_MENU_OPTIONS'] ? 'checked="checked"' : '';
+			if (!is_null($table_info['LINK_BACK_TO_TABLE'])) $table_info['LINK_BACK_TO_TABLE'] = $table_info['LINK_BACK_TO_TABLE'] ? 'checked="checked"' : '';
+		}
+		else
+			$table_info = array(
+				'SLUG' => null,
+				'SHORT_DISPLAY' => null,
+				'PREVIEW_DISPLAY_BEFORE' => null,
+				'PREVIEW_DISPLAY' => null,
+				'PREVIEW_DISPLAY_AFTER' => null,
+				'FULL_DISPLAY' => null,
+				'ROW_DISPLAY_MAX' => null,
+				'LINK_BACK_TO_TABLE' => null,
+				'DETAILED_MENU_OPTIONS' => null,
+			);
+			
+		$null_cbs = array();
+		foreach($table_info as $key=>$value)
+			$null_cbs[$key] = is_null($value) ? 'checked="checked"' : '';
+		
+		$query = "
+			SELECT META_NAME, META_CONTENT
+			FROM _TABLE_METAS
+			WHERE TABLE_NAME = ?
+		";
+		$params = array(
+			array("type" => "s", "value" => $table_name)
+		);
+		$metas = group_numeric_by_keys($db->run_query($query,$params),array('META_NAME','META_CONTENT'),true);
+		if (!empty($metas)) {
+			foreach($metas as &$meta)
+				$meta = $meta[0];
+				
+			if (!isset($metas['description']))
+				$metas['description'] = "";
+			if (!isset($metas['keywords']))
+				$metas['keywords'] = "";
+		} else {
+			$metas = array(
+				'description' => '',
+				'keywords' => ''
+			);
+		}
+		
+		// Really not a fan of hardcoding here
+		$output['html'] .=<<<TTT
+			<form method="post" action="">
+				<table>
+					<tr>
+						<td colspan="3">Display Meta</td>
+					</tr>
+					<tr>
+						<td>Slug:</td>
+						<td><input type="checkbox" name="SLUG_null" value="1" {$null_cbs['SLUG']} /></td>
+						<td><input name="SLUG" value="{$table_info['SLUG']}" /></td>
+					</tr>
+					<tr>
+						<td>Short Display:</td>
+						<td><input type="checkbox" name="SHORT_DISPLAY_null" value="1" {$null_cbs['SHORT_DISPLAY']} /></td>
+						<td><input name="SHORT_DISPLAY" value="{$table_info['SHORT_DISPLAY']}" /></td>
+					</tr>
+					<tr>
+						<td>Preview Display (Before):</td>
+						<td><input type="checkbox" name="PREVIEW_DISPLAY_BEFORE_null" value="1" {$null_cbs['PREVIEW_DISPLAY_BEFORE']} /></td>
+						<td><textarea name="PREVIEW_DISPLAY_BEFORE">{$table_info['PREVIEW_DISPLAY_BEFORE']}</textarea></td>
+					</tr>
+					<tr>
+						<td>Preview Display:</td>
+						<td><input type="checkbox" name="PREVIEW_DISPLAY_null" value="1" {$null_cbs['PREVIEW_DISPLAY']} /></td>
+						<td><textarea name="PREVIEW_DISPLAY">{$table_info['PREVIEW_DISPLAY']}</textarea></td>
+					</tr>
+					<tr>
+						<td>Preview Display (After):</td>
+						<td><input type="checkbox" name="PREVIEW_DISPLAY_AFTER_null" value="1" {$null_cbs['PREVIEW_DISPLAY_AFTER']} /></td>
+						<td><textarea name="PREVIEW_DISPLAY_AFTER">{$table_info['PREVIEW_DISPLAY_AFTER']}</textarea></td>
+					</tr>
+					<tr>
+						<td>Full Page Display:</td>
+						<td><input type="checkbox" name="FULL_DISPLAY_null" value="1" {$null_cbs['FULL_DISPLAY']} /></td>
+						<td><textarea class="ckeditor" name="FULL_DISPLAY">{$table_info['FULL_DISPLAY']}</textarea></td>
+					</tr>
+					<tr>
+						<td>Link Back to Table?</td>
+						<td><input type="checkbox" name="LINK_BACK_TO_TABLE_null" value="1" {$null_cbs['LINK_BACK_TO_TABLE']} /></td>
+						<td><input type="checkbox" name="LINK_BACK_TO_TABLE" value="1" {$table_info['LINK_BACK_TO_TABLE']}/></td>
+					</tr>
+					<tr>
+						<td>Row Display - Max</td>
+						<td><input type="checkbox" name="ROW_DISPLAY_MAX_null" value="1" {$null_cbs['ROW_DISPLAY_MAX']} /></td>
+						<td><input name="ROW_DISPLAY_MAX" value="{$table_info['ROW_DISPLAY_MAX']}" /></td>
+					</tr>
+					<tr>
+						<td>Detailed Menu Options?</td>
+						<td><input type="checkbox" name="DETAILED_MENU_OPTIONS_null" value="1" {$null_cbs['DETAILED_MENU_OPTIONS']} /></td>
+						<td><input type="checkbox" name="DETAILED_MENU_OPTIONS" value="1" {$table_info['DETAILED_MENU_OPTIONS']}/></td>
+					</tr>
+					<tr>
+						<td colspan="3">Meta Tags</td>
+					</tr>
+TTT;
+		foreach($metas as $key=>$value) {
+			$output['html'] .= <<<TTT
+					<tr>
+						<td>{$key}</td>
+						<td></td>
+						<td>
+							<textarea name="meta[{$key}]">{$value}</textarea>
+						</td>
+					</tr>
+					
+TTT;
+		}
+		$output['html'] .= <<<TTT
+					<tr>
+						<td>
+							<button type="button" id="new_meta">Add...</button>
+						</td>
+						<td></td>
+						<td></td>
+					</tr>
+					<tr>
+						<td></td>
+						<td></td>
+						<td><input type="submit" value="Save Table Settings" /></td>
+					</tr>
+				</table>
+			</form>
+TTT;
+
+		
+		
+		$output['html'] .= "<p><a href='".static::get_module_url()."$table_name'>Return to $table_name record listing...</a></p>";
+		
+		return $output;
+	}
+	
+	public static function edit_record($table_name, $id=null, $action="") {
+		global $local, $db,$s_user;
+		
+		if ($id == null)
+			$to_check = 'Add';
+		elseif ($action=="")
+			$to_check = "Edit";
+		else
+			$to_check = $action;
+		if (!$s_user->check_right('Tables',$table_name,$to_check))
+		{
+			header("Location: " . static::get_module_url() . $table_name);
+			exit;
+			return;
+		}
+		
 		$output = array('html' => '', 'script' => array(
 			"{$local}script/jquery.min.js",
 			"{$local}script/ckeditor/ckeditor.js",
@@ -128,8 +365,16 @@ class tables_admin extends tables {
 				})'
 		), 'css' => array());
 		
-		$table = new Tables($table_name);
-		$table->set_id($id);
+		$table = new Tables($table_name,$id);
+		
+		if ($action == 'delete') {
+			$table->delete_record();
+			Layout::set_message("Record deleted.","success");
+			header("Location: " . static::get_module_url().$table_name);
+			exit;
+			die;
+		}
+		
 		$columns = $table->get_columns();
 		$data = $table->get_records();
 		

@@ -1,0 +1,5 @@
+.main-content td[colspan="3"] {background: #CCC; color: #333; text-align: center; font-weight: bold;}
+.main-content td[colspan="3"] {background: #CCC; color: #333; text-align: center; font-weight: bold;}
+.main-content tr td:nth-child(1) {width: 25%;}
+.main-content tr td:nth-child(2) {width: 10%;}
+.main-content tr td:nth-child(3) {width: 65%;}

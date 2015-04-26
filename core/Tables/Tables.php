@@ -45,9 +45,14 @@ class tables extends module {
 			$params = array();
 			$query .= " WHERE ";
 			$key_cond = array();
-			foreach($this->PK as $idx=>$key) {
-				$key_cond[] = "{$key['COLUMN_NAME']} = ?";
-				array_push($params,array("type" => "s", "value" => $this->id[$idx]));
+			if (count($this->PK)==1) {
+				$key_cond[] = "{$this->PK[0]['COLUMN_NAME']} = ?";
+				array_push($params,array("type" => "s", "value" => $this->id));
+			} else {
+				foreach($this->PK as $idx=>$key) {
+					$key_cond[] = "{$key['COLUMN_NAME']} = ?";
+					array_push($params,array("type" => "s", "value" => $this->id[$idx]));
+				}
 			}
 			$query .= implode(" AND ",$key_cond);
 			$result = $db->run_query($query,$params);
@@ -58,7 +63,6 @@ class tables extends module {
 	
 	public function save($data) {
 		global $db;
-
 		if (empty($this->id)) {
 			$query = "INSERT INTO {$this->table_name} ( ";
 			$params = array();
@@ -107,15 +111,83 @@ class tables extends module {
 			} else {
 				return false;
 			}
-			$db->run_query($query,$params);
-			if (is_null($this->id)) {
-				return $db->get_inserted_id();
-			} else {
-				return true;
-			}
+		}
+		$db->run_query($query,$params);
+		if (is_null($this->id)) {
+			return $db->get_inserted_id();
+		} else {
+			return true;
 		}
 	}
 	
+	/*
+	 * 
+	 * */
+	public function delete_record() {
+		global $db;
+		$condition = array();
+		$params = array();
+		$id = is_array($this->id) ? $this->id : array($this->id);
+		foreach($this->PK as $idx=>$column) {
+			$condition[] = "{$column['COLUMN_NAME']} = ?";
+			array_push(
+				$params,
+				array("type" => "s", "value" => $id[$idx])
+			);
+		}
+		$query = "
+			DELETE FROM {$this->table_name}
+			WHERE " . implode(",",$condition);
+		$db->run_query($query,$params);
+		return true;
+	}
+	/*
+	 * Updates the _TABLE_INFO and _TABLE_META records associated with this table... 
+	 * 
+	 * */
+	public function update_table_info($data) {
+		global $db;
+		$table_info = new Tables('_TABLE_INFO', $this->table_name);
+		if (empty($table_info->get_records()))
+			$table_info->set_id(null);
+		$data['TABLE_NAME'] = $this->table_name;
+		$table_info->save($data);
+		$meta_key_params = array(
+			array("type" => "s", "value" => $this->table_name)
+		);
+		
+		if (!empty($data['meta'])) {
+			/* Save each meta record... */
+			$query = "
+				INSERT INTO _TABLE_METAS (TABLE_NAME, META_NAME, META_CONTENT) 
+				VALUES (?,?,?) 
+				ON DUPLICATE KEY UPDATE META_CONTENT = VALUES(META_CONTENT);
+			";
+			foreach($data['meta'] as $key=>$value) {
+				if ($value === "") continue;
+				
+				$params = array (
+					array("type" => "s", "value" => $this->table_name),
+					array("type" => "s", "value" => $key),
+					array("type" => "s", "value" => $value)
+				);
+				$db->run_query($query,$params);
+				array_push(
+					$meta_key_params,
+						array("type" => "s", "value" => $key)
+				);
+			}
+		}
+		/* Finally, remove any metas no longer in use... */
+		$query = "
+			DELETE FROM _TABLE_METAS
+			WHERE 
+				TABLE_NAME = ? AND 
+				META_NAME NOT IN (".substr(str_repeat("?,",count($meta_key_params)-1),0,-1).")
+		";
+		$db->run_query($query,$meta_key_params);
+		return true;
+	}
 	public function get_columns() {
 		return $this->columns;
 	}
@@ -137,7 +209,24 @@ class tables extends module {
 			array("type" => "s", "value" => $table)
 		);
 		$result = $db->run_query($query,$params);
-		return $result[0]['is_table']==true;
+		return $result[0]['is_table']==1;
+	}
+	
+	public static function table_has_column($table,$column)
+	{
+		global $db;
+		$query = "
+			SELECT CASE COUNT(*) WHEN 0 THEN 0 ELSE 1 END AS has_column
+			FROM INFORMATION_SCHEMA.COLUMNS C
+			WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?
+		";
+		$params = array(
+			array("type" => "s", "value" => $db->get_db_name()),
+			array("type" => "s", "value" => $table),
+			array("type" => "s", "value" => $column)
+		);
+		$result = $db->run_query($query,$params);
+		return $result[0]['has_column']==1;
 	}
 	
 	/* Returns all tables Session User has rights to view... */
@@ -417,117 +506,16 @@ class tables extends module {
 		return array('concat' => $condition, 'params' => $params);
 	}
 	
-	/* Saves $data to $table. 
-	 * 
-	 * @param $table - The Table (not slug) to save to.
-	 * @param $data - The data being saved.  Must match table columns exactly.
-	 * @param $id - The existing primary key.  Blank if inserting new record
-	 * 
-	 * @return boolean - True on success, false on error.
-	 * */
-	public static function save_record($table,$data,$id) {
-		
-	}
-	
-	public static function edit_record_submit($table,$id,$before,$after) {
-		global $local, $db;
-		$table_info = static::get_table_columns($table);
-		$user = users::get_session_user();
-		$query = "SELECT SHORT_DISPLAY as new_id FROM _TABLE_INFO WHERE TABLE_NAME = ? AND SHORT_DISPLAY IS NOT NULL";
-		$params = array(
-			array("type" => "s", "value" => $table)
-		);
-		$result = $db->run_query($query,$params);
-		if (empty($result)) $new_id = null;
-		else extract($result[0]);
-
-		if (empty($before)) {
-			/* Brand new record - INSERT */
-			/* First confirm user has rights to add... */
-			if (!$user->check_right('Tables',$table,'Add')) return false;
-			$query = "INSERT INTO $table (";
-			$params = array();
-			$cols = array();
-			$vals = array();
-			foreach($table_info as $idx=>$column) {
-				if ($column['IS_AUTO_INCREMENT']) continue;
-				if (!array_key_exists("col$idx",$after)) $after["col$idx"] = "";
-				if (!empty($after["col{$idx}_null"])) $after["col$idx"] = NULL;
-				if ($column['DATA_TYPE']=='datetime') {
-					$after["col$idx"] = date_format(new DateTime($after["col$idx"]),'Y-m-d H:i:s');
-				}
-				$cols[] = $column['COLUMN_NAME'];
-				array_push($params,array(
-					"type" => "s",
-					"value" => $after["col$idx"]
-				));
-				Database::param_type_check($column['DATA_TYPE'],$params[count($params)-1]['type']);
-				$new_id = preg_replace("/{{$column['COLUMN_NAME']}}/",$after["col$idx"],$new_id);
-			}
-			$query.= implode(", ", $cols) . ") VALUES (" . substr(str_repeat('?,',count($params)),0,-1) . ")";
-		} else {
-			if (!$user->check_right('Tables',$table,'Edit')) return false;
-			$PK = static::get_primary_key($table)[0]['COLUMN_NAME'];
-			$query = "UPDATE $table SET ";
-			$params = array();
-			foreach($table_info as $idx=>$column) {
-					if ($column['IS_AUTO_INCREMENT']) continue;
-					if ($column['DATA_TYPE']=='datetime') {
-						$after["col$idx"] = date_format(new DateTime($after["col$idx"]),'Y-m-d H:i:s');
-					}
-					if (!array_key_exists("col$idx",$after)) $after["col$idx"] = "";
-					if (!empty($after["col{$idx}_null"])) $after["col$idx"] = NULL;
-					$sets[] = "{$column['COLUMN_NAME']} = ?";
-					array_push($params,
-						array("type" => "s", "value" => $after["col$idx"]));
-					Database::param_type_check($column['DATA_TYPE'],$params[count($params)-1]['type']);
-					$new_id = preg_replace("/{{$column['COLUMN_NAME']}}/",$after["col$idx"],$new_id);
-			}
-			$query .= implode(", ", $sets) . " WHERE $PK = ?";
-			array_push($params,array("type" => "s", "value" => $before[$PK]));
-		}
-		$success = $db->run_query($query,$params);
-		if (is_string($success)) {
-			layout::set_message($success,'error');
-			header("Location: ".static::get_module_url()."$table/$id/edit");
-			exit();
-			return;
-		}
-		if (empty($new_id)) {
-			$new_id = empty($before) ? 
-				$db->get_inserted_id() : 
-				(empty($after[$PK]) ? $before[$PK] : $after[$PK]);
-		}
-		header("Location: ".static::get_module_url()."$table/$new_id");	// Should be NEW ID...
-		exit();
-		return;
-		
-	}
-	
-	public static function delete_record($table,$data) {
-		global $local, $db;
-		$PK = static::get_primary_key($table);
-		$query = "DELETE FROM $table WHERE ";
-		$params = array();
-		$clause = array();
-		foreach($PK as $key) {
-			$clause[] = "{$key['COLUMN_NAME']} = ?";
-			array_push($params,array("type" => "s", "value" => $data[$key['COLUMN_NAME']]));
-		}
-		$query .= implode(" AND ",$clause);
-		$db->run_query($query,$params);
-		header("Location: ".static::get_module_url()."$table");
-		exit();
-		return;
-	}
 	/* Outputs available tables for viewing... */
 	protected static function view_tables() {
 		global $db,$local;
 		$output = array('html' => '', 'script' => array(), 'css' => array());
 		$user = users::get_session_user();
 		$db_name = $db->get_db_name();
-		$query = "SELECT *
-			FROM INFORMATION_SCHEMA.TABLES
+		$query = "
+			SELECT T.TABLE_NAME, IFNULL(I.SLUG,T.TABLE_NAME) as SLUG
+			FROM INFORMATION_SCHEMA.TABLES T
+			LEFT JOIN _TABLE_INFO I ON T.TABLE_NAME = I.TABLE_NAME
 			WHERE TABLE_SCHEMA = ?";
 			$params = array(
 				array("type" => "s", "value" => $db_name)
@@ -539,7 +527,7 @@ class tables extends module {
 			foreach($tables as $t) {
 				/* Only display table if they have the right to view it... */
 				if ($user->check_right('Tables',$t['TABLE_NAME'],'View'))
-					$output['html'] .= "<li><a href='".static::get_module_url()."{$t['TABLE_NAME']}/'>{$t['TABLE_NAME']}</a></li>";
+					$output['html'] .= "<li><a href='".static::get_module_url()."{$t['SLUG']}'>{$t['TABLE_NAME']}</a></li>";
 				elseif (users::get_right_id('Tables',$t['TABLE_NAME'],'View')===false) 
 					$tables_no_rights[] = $t['TABLE_NAME'];
 				
@@ -589,13 +577,9 @@ class tables extends module {
 		$data = $db->run_query($query);
 		if (!empty($table_info)) $table_info = $table_info[0];
 		if (empty($table_info['PREVIEW_DISPLAY'])) {
-			$actionHeader = "";
-			if ($user->check_right('Tables',$table,'Edit') || $user->check_right('Tables',$table,'Delete'))
-				$actionHeader = "<th></th>";
 			$output['html'] .= "<table>
 				<thead>
-					<tr>
-						$actionHeader";
+					<tr>";
 			$columns = static::get_table_columns($table);
 			foreach($columns as $column) {
 				$output['html'] .= "
@@ -616,20 +600,6 @@ class tables extends module {
 					
 					$output['html'] .= "
 					<tr>";
-					if (!empty($actionHeader)) {
-						$deleteLink = "";
-						$updateLink = "";
-						
-						if ($user->check_right('Tables',$table,'Delete'))
-							$deleteLink = "<a href='".static::get_module_url()."$table/$link/delete/' title='Click here to delete this row.'><img src='{$local}images/icon-delete.png' alt='Delete Row' /></a>";
-						if ($user->check_right('Tables',$table,'Edit'))
-							$updateLink = "<a href='".static::get_module_url()."$table/$link/edit/' title='Click here to edit this row.'><img src='{$local}images/icon-edit.png' alt='Edit Row' /></a>";
-						$output['html'] .= "
-						<td>
-							$updateLink
-							$deleteLink
-						</td>";
-						}
 
 					foreach($columns as $column) {
 							if (strcmp($column['CONSTRAINT_NAME'],'PRIMARY')==0) {
@@ -670,9 +640,6 @@ class tables extends module {
 			$output['html'] .= "
 				</tbody>
 			</table>";
-			if ($user->check_right('Tables',$table,'Add'))
-				$output['html'] .= "
-			<p><a href='".static::get_module_url()."$table/content/add/' title='Click to add new record for this table.'>Add New Record</a></p>";
 		} else {
 			foreach($data as $row) {
 				$common = array();
@@ -739,7 +706,7 @@ class tables extends module {
 		return $output;
 	}
 	
-	protected static function view_table_record($table,$id,$action = '') {
+	protected static function view_table_record($table,$id) {
 		global $local,$db;
 		$output = array('html' => '', 'script' => array());
 		$user = users::get_session_user();
@@ -761,14 +728,6 @@ class tables extends module {
 			header("Location: ".static::get_module_url());
 			exit();
 			return;
-		}
-		
-		switch ($action) {
-			case 'edit':
-			case 'add':
-					return static::edit_record($table,$id,$data);  
-			case 'delete':
-				return static::delete_record($table,$data);
 		}
 		
 		$query = "
@@ -794,7 +753,79 @@ class tables extends module {
 			</table>";
 		} else {
 			$display = $display[0];
-			$output['html'] .= replace_formatted_string($display['FULL_DISPLAY'],"{","}",$data);
+			$display['FULL_DISPLAY'] = replace_formatted_string($display['FULL_DISPLAY'],"{","}",$data);
+			/* Still TODO: Search for {FKID_FIELD} and %FKID_HREF% */
+			$columns = static::get_table_columns($table);
+			foreach($columns as $column) {
+				if ($column['REFERENCED_TABLE_NAME']) {
+					if (preg_match("/{{$column['COLUMN_NAME']}_(?<REFERENCED_COLUMN>(.*))}/",$display['FULL_DISPLAY'],$matches)) {
+						//confirm it IS a field...
+						if (static::table_has_column($column['REFERENCED_TABLE_NAME'],$matches['REFERENCED_COLUMN'])) {
+							$query = "
+								SELECT {$matches['REFERENCED_COLUMN']}
+								FROM {$column['REFERENCED_TABLE_NAME']}
+								WHERE {$column['REFERENCED_COLUMN_NAME']} = ?
+							";
+							$params = array(
+								array('type' => 'i', 'value' => $data[$column['COLUMN_NAME']])
+							);
+							$result = $db->run_query($query,$params);
+							$display['FULL_DISPLAY'] = preg_replace("/{{$column['COLUMN_NAME']}_{$matches['REFERENCED_COLUMN']}}/",$result[0][$matches['REFERENCED_COLUMN']],$display['FULL_DISPLAY']);
+						}
+					}
+					
+					if (preg_match("/%{$column['COLUMN_NAME']}_HREF%/",$display['FULL_DISPLAY'])) {
+						//replace with hyperlink to that record...
+						$href = static::get_module_url() ;
+						$query = "
+							SELECT SLUG as table_slug, SHORT_DISPLAY as record_slug
+							FROM _TABLE_INFO 
+							WHERE TABLE_NAME = ?
+						";
+						$params = array(
+							array("type" => "s", "value" => $column['REFERENCED_TABLE_NAME'])
+						);
+						$result = $db->run_query($query,$params);
+						if (empty($result)) {
+							// no slug, short display - use table name and primary key
+							$href .= "{$column['REFERENCED_TABLE_NAME']}/{$data[$column['COLUMN_NAME']]}";
+						} else {
+							extract($result[0]);
+							if (is_null($table_slug))
+								$table_slug = $column['REFERENCED_TABLE_NAME'];
+							$href .= $table_slug;
+							if (!empty($record_slug)) 
+							{
+								$reference_columns = static::get_table_columns($column['REFERENCED_TABLE_NAME']);
+								$colsToGrab = array();
+								foreach($reference_columns as $ref_column)
+								{
+									if (preg_match("/{{$ref_column['COLUMN_NAME']}}/",$record_slug))
+										$colsToGrab[] = $ref_column['COLUMN_NAME'];
+								}
+								if (!empty($colsToGrab)) {
+									$query = "
+										SELECT ".implode(",",$colsToGrab)."
+										FROM {$column['REFERENCED_TABLE_NAME']}
+										WHERE {$column['REFERENCED_COLUMN_NAME']} = ?
+									";
+									$params = array(
+										array("type" => "i", "value" => $data[$column['COLUMN_NAME']])
+									);
+									$ref_data = $db->run_query($query,$params);
+									$record_slug = make_url_safe(replace_formatted_string($record_slug,"{","}",$ref_data[0]));
+								}
+							} else {
+								$record_slug = make_html_safe($data[$column['COLUMN_NAME']]);
+							}
+							$href .= "/$record_slug";
+							$display['FULL_DISPLAY'] = preg_replace("/%{$column['COLUMN_NAME']}_HREF%/",$href,$display['FULL_DISPLAY']);
+						}
+						
+					}
+				}
+			}
+			$output['html'] .= $display['FULL_DISPLAY'];
 		}
 		if ($display['LINK_BACK_TO_TABLE'])
 			$output['html'] .= "<p><a href='".static::get_module_url()."".make_url_safe($table)."/'>Return to $table listing...</a></p>";
@@ -858,7 +889,7 @@ class tables extends module {
 		static::edit_record_submit($args[0],$args[1],$data,$post);
 	}
 	
-	public static function view($table='', $id='', $action = '') {
+	public static function view($table='', $id='') {
 		global $db,$local;
 		$db_name = $db->get_db_name();
 		$output = array(
@@ -881,7 +912,7 @@ class tables extends module {
 			);
 			$result = $db->run_query($query,$params);
 			if (empty($result)) {
-				list($table,$id,$action) = array('',$table,$id);
+				list($table,$id) = array('',$table);
 			} else {
 				$table = $result[0]['TABLE_NAME'];
 			}
@@ -909,7 +940,7 @@ class tables extends module {
 		}
 		
 		if (!empty($table)) {
-			return static::view_table_record($table,$id,$action);
+			return static::view_table_record($table,$id);
 		} else {
 			return static::view_tables();
 		}
