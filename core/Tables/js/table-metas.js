@@ -11,10 +11,10 @@ $(function() {
 					.addClass('new-meta-name')
 			)
 			.appendTo($row);
-			
+
 		$('<td />')
 			.appendTo($row);
-			
+
 		$('<td />')
 			.append(
 				$('<textarea />')
@@ -30,6 +30,5 @@ $(function() {
 	});
 	$("textarea.ckeditor").each(function() {
 		CKEDITOR.replace($(this).attr("ID"));
-		});
-	})
+	});
 });

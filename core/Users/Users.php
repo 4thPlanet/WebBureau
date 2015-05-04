@@ -4,18 +4,18 @@ class users extends module {
 	protected $user_info;
 	private $rights;
 	public function __construct($user = array('ID'=>0)) {
-		
+
 		$this->user_info = $user;
 		$this->reload_rights();
 		$this->reload_groups();
 		$this->reload_theme();
-		
+
 	}
-	
+
 	public function is_group_member($group) {
 		return (!empty($this->user_info['GROUPS'][$group]));
 	}
-	
+
 	public function reload_theme() {
 		global $db,$s_user;
 		if (empty($this->user_info['ID'])) {
@@ -43,9 +43,9 @@ class users extends module {
 		if (empty($result)) $this->user_info['THEME'] = null;
 		else $this->user_info['THEME'] = $result[0];
 	}
-	
+
 	public function get_theme() {return $this->user_info['THEME'];}
-	
+
 	public function reload_groups() {
 		global $db;
 		$groups = &$this->user_info['GROUPS'];
@@ -64,17 +64,17 @@ class users extends module {
 		);
 		$groups = group_numeric_by_key($db->run_query($query,$params),'NAME');
 	}
-	
+
 	public function check_right($module,$type,$right) {
 		$rights = $this->rights;
 		if (
 			empty($rights[$module]) ||
-			empty($rights[$module][$type]) || 
+			empty($rights[$module][$type]) ||
 			!array_key_exists($right,$rights[$module][$type])
 		) return false;
 		else return $rights[$module][$type][$right];
 	}
-	
+
 	public function reload_rights() {
 		/* Get a list of all rights user has */
 		global $db;
@@ -105,16 +105,16 @@ class users extends module {
 			$user_rights[$right['MODULE']][$right['TYPE']][$right['RIGHT']] = 1;
 		}
 	}
-	
+
 	public function id() {return $this->user_info['ID'];}
-	
+
 	public function get_hashed_password() {return $this->user_info['PASSWORD'];}
 	public function refresh_hashed_password($pw) {$this->user_info['PASSWORD'] = $pw;}
-	
+
 	public function is_current_user($username) {
 		return $username = $this->user_info['USERNAME'];
 	}
-	
+
 	public static function get_session_user() {
 		global $s_user;
 		if (isset($s_user)) return $s_user;
@@ -124,18 +124,18 @@ class users extends module {
 			return $_SESSION['users']['user'];
 		}
 	}
-	
+
 	public static function current_user_is_guest() {
 		global $s_user;
 	//	echo "current_user_is_guest() called, s_user = " . var_export($s_user,true) ;
 	//	var_export(isset($s_user));
 	//	var_export($s_user->user_info['ID']==0);
-		
+
 		if (!isset($s_user)) return true;
 		if ($s_user->user_info['ID']==0) return true;
 		else return false;
 	}
-	
+
 	public static function logout() {
 		/* Processes logout request */
 		global $local;
@@ -173,7 +173,7 @@ class users extends module {
 			}
 		}
 	}
-	
+
 	private static function register_submit($data) {
 		global $local,$db;
 		/* Try to register the user... */
@@ -206,13 +206,13 @@ class users extends module {
 				header("Location: {$local}Users/");
 				exit();
 				return;
-			}		
+			}
 		}
-		
-		
-		
+
+
+
 	}
-	
+
 	public static function register() {
 		global $local,$db;
 		$user = static::get_session_user();
@@ -258,10 +258,10 @@ class users extends module {
 			$output['script'][] = get_public_location(__DIR__ . '/js/user-groups.js');
 			$query = "SELECT NAME FROM _GROUPS WHERE NAME NOT IN ('Guest','Registered User')";
 			$groups = json_encode(group_numeric_by_key($db->run_query($query),'NAME'));
-			
+
 			$output['script'][] = "var groups = " . $groups;
 		}
-		
+
 		$output['html'] .= "
 				<tr>
 					<td colspan='100%'>
@@ -272,7 +272,7 @@ class users extends module {
 		</form>";
 		return $output;
 	}
-	
+
 	public static function view_all_users() {
 		global $local, $db;
 		$user = static::get_session_user();
@@ -281,7 +281,7 @@ class users extends module {
 			exit();
 			return;
 		}
-		
+
 		$output = array('html' => '', 'title' => 'Users');
 		$query = "
 			SELECT U.USERNAME, GROUP_CONCAT(G.NAME) as Groups
@@ -320,7 +320,7 @@ class users extends module {
 		</table>";
 		return $output;
 	}
-	
+
 	public static function view_user($username) {
 		global $local, $db;
 		/* RIGHTS CHECK!! */
@@ -354,13 +354,25 @@ class users extends module {
 		$output['html'] .= "<p><a href='".static::get_module_url()."'>Back to Users</a></p>";
 		return $output;
 	}
-	
+
+	public static function get_groups() {
+		global $db;
+		/* Just a list of groups, along with a count of members... */
+		$query = "
+			SELECT ID,NAME,COUNT(DISTINCT UG.USER_ID) membership
+			FROM _GROUPS G
+			LEFT JOIN _USERS_GROUPS UG ON G.ID = UG.GROUP_ID
+			GROUP BY G.ID, G.NAME
+		";
+		return $db->run_query($query);
+	}
+
 	public static function view_group($group) {
 		global $local, $db;
 		/* Confirm Real Group... */
 		$query = "
 			SELECT NAME
-			FROM _GROUPS 
+			FROM _GROUPS
 			WHERE NAME RLIKE ?";
 		$params = array(
 			array("type" =>"s", "value" => decode_url_safe($group))
@@ -377,7 +389,7 @@ class users extends module {
 			exit();
 			return;
 		}
-		
+
 		$output = array('html' => '');
 		$output['html'] .= "<h3>$group User Group</h3><p>The following members belong to this user group:</p>";
 		$output['html'] .= "<table>
@@ -388,7 +400,7 @@ class users extends module {
 				</tr>
 			</thead>
 			<tbody>";
-		
+
 		$query = "
 			SELECT U.USERNAME, GROUP_CONCAT(G2.NAME) as GROUPS
 			FROM _GROUPS G
@@ -420,13 +432,13 @@ class users extends module {
 				</tr>
 			";
 		}
-		
-		$output['html'] .= "			
+
+		$output['html'] .= "
 			</tbody>
 		</table>";
 		return $output;
 	}
-	
+
 	public static function edit_user($user) {
 		global $local, $db;
 		/* This should only be viewable if the current user = $user */
@@ -447,8 +459,8 @@ class users extends module {
 			return;
 		}
 		$user_info = make_html_safe($result[0],ENT_QUOTES);
-		
-		
+
+
 		$output = array('html' => '<h3>Edit User Information</h3>');
 		$output['html'] .= "<form method='post' action=''>";
 		$output['html'] .= "
@@ -466,7 +478,7 @@ class users extends module {
 
 		return $output;
 	}
-	
+
 	public static function update_user($user,$data) {
 		global $db;
 		/* Confirm Email is valid */
@@ -489,9 +501,9 @@ class users extends module {
 		header("Location: " . static::get_module_url() . "$user");
 		exit();
 		return;
-		
+
 	}
-	
+
 	public static function edit_password($username) {
 		global $local, $db;
 		/* This should only be viewable if the current user = $user */
@@ -511,7 +523,7 @@ class users extends module {
 			exit();
 			return;
 		}
-		
+
 		$output = array('html' => '<h3>Update Password</h3>');
 		$output['html'] .= "<form action='' method='post'>
 			<div>
@@ -532,7 +544,7 @@ class users extends module {
 		</form>";
 		return $output;
 	}
-	
+
 	public static function update_password($username,$data) {
 		global $db;
 		$user = static::get_session_user();
@@ -542,7 +554,7 @@ class users extends module {
 			layout::set_message('Unable to confirm current password.','error');
 			$error = true;
 		}
-		
+
 		/* Confirm new password is...confirmed... */
 		if ($data['new']!==$data['confirm']) {
 			layout::set_message('Unable to confirm new password.','error');
@@ -551,7 +563,7 @@ class users extends module {
 		if ($error) {
 			return;
 		}
-		
+
 		/* Update Password */
 		$query = "UPDATE _USERS SET PASSWORD = ? WHERE USERNAME = ?";
 		$params = array(
@@ -560,22 +572,22 @@ class users extends module {
 		);
 		$db->run_query($query,$params);
 		$user->refresh_hashed_password(user_password_hash($username,$data['new']));
-		
+
 		layout::set_message("Password has been updated.","info");
 		header("Location: " . static::get_module_url() . "$username/edit");
 		exit();
 		return;
 	}
-	
+
 	public static function create_user($data) {
 		/* Attempts to create a user based on $data array passed in...*/
 		global $local,$db;
-		
+
 		$data = array_change_key_case($data);
 		if (empty($data['username'])) return 'Username is a required field';
 		elseif (empty($data['password']) && empty($data['email'])) return 'Password and/or email must be submitted.';
 		elseif (empty($data['password'])) $data['password'] = create_random_string(8);
-		
+
 		/* Check for username uniqueness */
 		$query = "SELECT CASE COUNT(*) WHEN 0 THEN 1 ELSE 0 END AS IS_UNIQUE
 		FROM _USERS
@@ -585,10 +597,10 @@ class users extends module {
 		);
 		$is_unique = $db->run_query($query,$params)[0]['IS_UNIQUE'];
 		if (!$is_unique) return 'Username is not available.';
-		
+
 		if (!array_key_exists('email',$data)) $data['email'] = null;
 		if (!array_key_exists('display',$data)) $data['display'] = null;
-		
+
 		$query = "INSERT INTO _USERS (USERNAME,PASSWORD,EMAIL,DISPLAY_NAME)
 		VALUES (?,?,?,?)";
 		$params = array(
@@ -614,7 +626,7 @@ class users extends module {
 		}
 		$query.= implode(",",$p) . ")";
 		$db->run_query($query,$params);
-		
+
 		/* Send email confirming username set (if email present).. */
 		if (!empty($data['email'])) {
 			$emailParams = array(
@@ -638,8 +650,8 @@ Regards,
 		}
 		return true;
 	}
-	
-	public static function required_rights() { 
+
+	public static function required_rights() {
 		global $db;
 		$rights = array(
 			'Users' => array(
@@ -695,7 +707,7 @@ Regards,
 			);
 		return $rights;
 	}
-	
+
 	public static function install() {
 		/* Installs the User module */
 		global $db;
@@ -722,8 +734,8 @@ Regards,
 		$query[] = "INSERT INTO _GROUPS (NAME, DESCRIPTION)
 		SELECT tmp.NAME, tmp.DESCRIPTION
 		FROM (
-			SELECT 'Admin' as NAME, 'This group will have be able to access the entire site.' as DESCRIPTION 
-			UNION 
+			SELECT 'Admin' as NAME, 'This group will have be able to access the entire site.' as DESCRIPTION
+			UNION
 			SELECT 'Guest' as NAME, 'Users who are not signed in' as DESCRIPTION
 			UNION
 			SELECT 'Registered User' as NAME, 'Users who are signed in' as DESCRIPTION
@@ -759,9 +771,9 @@ Regards,
 			FOREIGN KEY (GROUP_ID) REFERENCES _GROUPS(ID),
 			FOREIGN KEY (RIGHT_ID) REFERENCES _RIGHTS(ID)
 		);";
-		foreach($query as $q) $db->run_query($q); 
+		foreach($query as $q) $db->run_query($q);
 		$db->trigger('register_time','BEFORE INSERT','_USERS','SET NEW.REGISTER_DATE = IFNULL(NEW.REGISTER_DATE,NOW())');
-		
+
 		/* Add to the _WIDGETS table RIGHT_ID (if necessary)*/
 		$query = "SELECT CASE COUNT(*) WHEN 0 THEN 0 ELSE 1 END AS COLUMN_EXISTS
 		FROM INFORMATION_SCHEMA.COLUMNS
@@ -779,17 +791,17 @@ Regards,
 				ADD FOREIGN KEY (RIGHT_ID) REFERENCES _RIGHTS(ID)";
 			$db->run_query($query);
 		}
-		
+
 		/* Create the widget records... */
 		require_once(__DIR__ . '/Login.Widget.php');
 		login_widget::install();
 		require_once(__DIR__ . '/Welcome.Widget.php');
 		welcome_widget::install();
-	
+
 		return true;
 	}
-	 
-	 public static function get_right_id($module, $type, $name) {
+
+	public static function get_right_id($module, $type, $name) {
 		 global $db;
 		 $query = "SELECT R.ID
 		 FROM _MODULES M
@@ -805,7 +817,7 @@ Regards,
 		 if (empty($right)) return false;
 		 else return $right[0]['ID'];
 	 }
-	
+
 	public static function create_right($module,$type,$name,$description,$super=false) {
 		global $db;
 		if (empty($module) || empty($type) || empty($name)) return false;
@@ -822,7 +834,7 @@ Regards,
 			array("type" => "s", "value" => $type),
 		);
 		$result = $db->run_query($query,$params);
-		
+
 		if (empty($result)) {
 			/* Create new type... */
 			$query = "
@@ -837,7 +849,7 @@ Regards,
 			$db->run_query($query,$params);
 			$type_id = $db->get_inserted_id();
 		} else $type_id = $result[0]['type_id'];
-		
+
 		/* Create the right... */
 		$query = "INSERT INTO _RIGHTS (RIGHT_TYPE_ID, NAME, DESCRIPTION) VALUES ( ?, ?, ? )";
 		$params = array(
@@ -848,7 +860,7 @@ Regards,
 		$db->run_query($query,$params);
 		return $db->get_inserted_id();
 	}
-	
+
 	public static function assign_rights($rights,$super=false) {
 		global $local, $db;
 		$user = static::get_session_user();
@@ -868,7 +880,7 @@ Regards,
 		}
 		$user->reload_rights();
 	}
-	
+
 	public static function post($args) {
 		$action = array_shift($args);
 		switch($action) {
@@ -888,7 +900,7 @@ Regards,
 				return static::update_password($user,$_POST);
 		}
 	}
-	
+
 	public static function view() {
 		global $local,$db;
 		$output = array('html' => '');
@@ -902,9 +914,9 @@ Regards,
 			case 'groups':
 				if (!empty($args[0])) return static::view_group($args[0]);
 		}
-		
+
 		/* $action must be a user..confirm this user actually exists... */
-		$query = "SELECT USERNAME 
+		$query = "SELECT USERNAME
 		FROM _USERS U
 		WHERE USERNAME = ?";
 		$params = array(

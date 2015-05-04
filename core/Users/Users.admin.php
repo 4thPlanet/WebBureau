@@ -1,28 +1,28 @@
 <?php
 class users_admin extends users {
 	public static function ajax() {}
-	
+
 	public static function post($args,$request) {
 		list($type,$id) = $args;
 		switch($type) {
 			case 'Users': return static::user_admin_post($id,$request);
 			case 'Groups': return static::group_admin_post($id,$request);
-		}		
+		}
 		return false;
 	}
-	
+
 	public static function view($type='',$id='') {
 		global $db,$local;
 		switch ($type) {
 			case 'Users' : return static::user_admin($id);
 			case 'Groups' : return static::group_admin($id);
 			case '': break;
-			default: 
+			default:
 				header("Location: " . modules::get_module_url() . "Users/");
 				exit();
 				return;
 		}
-		
+
 		$output = array(
 			'html' => '<h3>User/Group Administration</h3>'
 		);
@@ -32,10 +32,10 @@ class users_admin extends users {
 				<li><a href='".modules::get_module_url()."Users/Users'>View Users</a></li>
 				<li><a href='".modules::get_module_url()."Users/Groups'>View Groups</a></li>
 			</ul>";
-		
+
 		return $output;
 	}
-	
+
 	protected static function user_admin($id) {
 		global $db,$local;
 		$s_user = static::get_session_user();
@@ -80,7 +80,7 @@ class users_admin extends users {
 						<td>".preg_replace('/(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)/','$2/$3/$1 $4:$5',$user['REGISTER_DATE'])."</td>
 					</tr>";
 			}
-			$output['html'].="				
+			$output['html'].="
 				</tbody>
 			</table>
 			<p><a href='".modules::get_module_url()."Users'>Back</a></p>";
@@ -106,11 +106,11 @@ class users_admin extends users {
 				array("type" => "i", "value" => $id)
 			);
 			$user_groups = group_numeric_by_key($db->run_query($query,$params),'NAME');
-			
+
 			/* Get All Groups... */
 			$query = "SELECT NAME FROM _GROUPS";
 			$groups = group_numeric_by_key($db->run_query($query),'NAME');
-			
+
 			$output['html'] .= "
 				<h4>{$user_info['USERNAME']} (Member since ".preg_replace('/(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)/','$2/$3/$1',$user_info['REGISTER_DATE']).")</h4>
 				<form method='post' action=''>
@@ -128,7 +128,7 @@ class users_admin extends users {
 					<p>
 						<input type='submit' value='Save User' />
 					</p>";
-			foreach($user_groups as $ug) 
+			foreach($user_groups as $ug)
 				$output['html'] .= "<input type='hidden' value='$ug' name='groups[]' />";
 			$output['html'] .= "
 				</form>
@@ -148,7 +148,7 @@ class users_admin extends users {
 		}
 		return $output;
 	}
-	
+
 	private static function user_admin_post($id,$request) {
 		global $db;
 		$query = "
@@ -162,7 +162,7 @@ class users_admin extends users {
 			array("type" => "i", "value" => $id)
 		);
 		$db->run_query($query,$params);
-		
+
 		/* Set Groups for user...*/
 		/* First remove groups which shouldn't be there... */
 		if (!empty($request['groups'])) {
@@ -182,7 +182,7 @@ class users_admin extends users {
 				INSERT INTO _USERS_GROUPS (USER_ID,GROUP_ID)
 				SELECT ?,G.ID
 				FROM _GROUPS G
-				LEFT JOIN _USERS_GROUPS UG ON 
+				LEFT JOIN _USERS_GROUPS UG ON
 					UG.USER_ID = ? AND
 					UG.GROUP_ID = G.ID
 				WHERE G.NAME IN (".substr(str_repeat("?,",count($request['groups'])),0,-1).") AND UG.USER_ID IS NULL";
@@ -201,7 +201,7 @@ class users_admin extends users {
 			$db->run_query($query,$params);
 		}
 	}
-	
+
 	protected static function group_admin($id) {
 		global $db,$local;
 		$s_user = users::get_session_user();
@@ -211,13 +211,7 @@ class users_admin extends users {
 			'scripts' => array()
 		);
 		if (empty($id)) {
-			/* Just a list of groups, along with a count of members... */
-			$query = "
-				SELECT ID,NAME,COUNT(DISTINCT UG.USER_ID) membership
-				FROM _GROUPS G
-				LEFT JOIN _USERS_GROUPS UG ON G.ID = UG.GROUP_ID
-				GROUP BY G.ID,G.NAME";
-			$groups = make_html_safe($db->run_query($query));
+			$groups = make_html_safe(static::get_groups());
 			$output['html'] .= "
 			<table>
 				<thead>
@@ -233,8 +227,8 @@ class users_admin extends users {
 						<td><a href='".modules::get_module_url()."Users/Groups/{$group['ID']}'>{$group['NAME']}</a></td>
 						<td>{$group['membership']}</td>
 					</tr>";
-			}					
-			$output['html'] .= "					
+			}
+			$output['html'] .= "
 				</tbody>
 			</table>
 			<p><a href='".modules::get_module_url()."Users'>Back</a></p>";
@@ -300,10 +294,10 @@ class users_admin extends users {
 						</tbody>
 					</table>
 					<p><input type='submit' value='Save Group' /></p>";
-				
-				
+
+
 			}
-			
+
 			$output['html'] .= "
 				<h4>$action</h4>
 				<form method='post' action=''>
@@ -320,11 +314,11 @@ class users_admin extends users {
 				</form>
 				<p><a href='".modules::get_module_url()."Users/Groups'>Return to Groups Administration</a></p>";
 		}
-		
-		
+
+
 		return $output;
 	}
-	
+
 	protected static function group_admin_post($id,$request) {
 		global $db,$s_user;
 		$query = "
@@ -342,7 +336,7 @@ class users_admin extends users {
 			if (!empty($request['rights'])) {
 				/* Remove all rights not in $request['rights'] */
 				$query = "
-					DELETE 
+					DELETE
 					FROM _GROUPS_RIGHTS
 					WHERE GROUP_ID = ? AND RIGHT_ID NOT IN (".substr(str_repeat("?,",count($request['rights'])),0,-1).")";
 				$params = array(
@@ -351,7 +345,7 @@ class users_admin extends users {
 				foreach($request['rights'] as $right)
 					array_push($params,array("type" => "i", "value" => $right));
 				$db->run_query($query,$params);
-				
+
 				/* Add any new rights from $request['rights']... */
 				$query = "
 					INSERT INTO _GROUPS_RIGHTS(GROUP_ID,RIGHT_ID)

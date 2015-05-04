@@ -2,17 +2,108 @@
 /* The primary difference between Tables and Tables Admin is the lack of slugs (since there's no need to make slugs pretty in the admin side)...*/
 
 class tables_admin extends tables {
-	public static function ajax($args,$request) {}
-	
+	public static function ajax($args,$request) {
+		switch($request['ajax']) {
+			case 'does-table-exist':
+				return static::is_table($request['table_name']);
+				break;
+		}
+	}
+
+	protected static function create_table($table_data) {
+		global $db, $s_user;
+		if (!$s_user->check_right('Tables','Table Actions','Add Table')) return;
+
+		$table_name = $table_data['table-name'];
+		if (!preg_match('/^\d*[a-zA-Z]\w*/',$table_name)) {
+			Layout::set_message('Invalid Table Name','error');
+			return;
+		}
+		if (empty($table_data['fields'])) {
+			Layout::set_message('At least one field must be present.','error');
+			return;
+		}
+		$primary_keys = array();
+		$foreign_keys = array();
+		$query = "CREATE TABLE $table_name (";
+
+		foreach($table_data['fields'] as $field=>$properties) {
+			if (!preg_match('/^\d*[a-zA-Z]\w*/',$field)) {
+				Layout::set_message("$field is an invalid field name",'error');
+				return;
+			}
+
+			$properties = array_merge(array('is-primary-key' => '', 'not-null' => '', 'auto-increment' => '', 'is_foreign_key' => 0, 'max-length' => ''), $properties);
+			if (!empty($properties['max-length'])) {
+				$properties['max-length'] = "({$properties['max-length']})";
+			}
+
+			$query .= "$field {$properties['field-type']}{$properties['max-length']} {$properties['not-null']} {$properties['auto-increment']},";
+			if ($properties['is-primary-key'])
+				$primary_keys[] = $field;
+			if ($properties['is_foreign_key']) {
+				$PK = static::get_primary_key($properties['reference-table']);
+				$foreign_keys[$field] = array('TABLE_NAME' => $properties['reference-table'], 'COLUMN_NAME' => $PK[0]['COLUMN_NAME']);
+			}
+		}
+		$query .= "PRIMARY KEY (".implode(",",$primary_keys).")";
+		if (!empty($foreign_keys)) {
+			foreach($foreign_keys as $fkey=>$reference) {
+				$query .= ", FOREIGN KEY ($fkey) REFERENCES {$reference['TABLE_NAME']}({$reference['COLUMN_NAME']})";
+			}
+		}
+		$query .= ")";
+		$result = $db->run_query($query);
+
+		if (!static::is_table($table_name)) {
+			Layout::set_message(print_r($db->GetErrors(),true),"error");
+			return;
+		}
+
+		if ($s_user->check_right('Users','Rights','Create Rights') && $s_user->check_right('Users','Rights','Assign Rights')) {
+			$new_rights = array();
+			foreach($table_data['rights'] as $right_name=>$assign_to) {
+				switch($right_name) {
+					case 'Add':
+						$description = "Allows user to add to the $table_name table.";
+						break;
+					case 'Edit':
+						$description = "Allows user to edit the $table_name table.";
+						break;
+					case 'Delete':
+						$description = "Allows user to delete from the $table_name table.";
+						break;
+					case 'View':
+						$description = "Allows user to view the $table_name table.";
+						break;
+				}
+				$right_id = users::create_right('Tables',$table_name,$right_name,$description);
+				$new_rights[$right_id] = $assign_to;
+			}
+			if (!empty($new_rights)) {
+				users::assign_rights($new_rights);
+				$s_user->reload_rights();
+			}
+		}
+
+		Layout::set_message("$table_name created.","success");
+		header("Location: " . static::get_module_url() . "$table_name");
+		exit;
+		return;
+	}
+
 	public static function post($args,$request) {
 		$table_name = array_shift($args);
+
+		if ($table_name=='add-new-table') return static::create_table($request);
+
 		$table = new Tables($table_name);
 		if (!empty($args)) {
 			$id = array_shift($args);
 		} else {
 			$id = null;
 		}
-		
+
 		switch($id) {
 			case 'meta':
 				$meta_table = new Tables('_TABLE_INFO');
@@ -25,8 +116,10 @@ class tables_admin extends tables {
 						$meta_columns_data[$column['COLUMN_NAME']] = null;
 					elseif (isset($request[$column['COLUMN_NAME']]))
 						$meta_columns_data[$column['COLUMN_NAME']] = $request[$column['COLUMN_NAME']];
+					else
+						$meta_columns_data[$column['COLUMN_NAME']] = null;
 				}
-				
+
 				$table->update_table_info($meta_columns_data);
 				Layout::set_message('Table meta data saved','success');
 				return;
@@ -35,7 +128,7 @@ class tables_admin extends tables {
 			default:
 				$table->set_id($id);
 		}
-		
+
 		/* Before we save the data, we need to map the request data to actual columns... */
 		$columns = $table->get_columns();
 		$data = array();
@@ -64,12 +157,14 @@ class tables_admin extends tables {
 				return;
 			}
 		}
-		
+
 	}
-	
+
 	public static function view($table='',$id='',$action='') {
 		if (empty($table)) {
 			return static::list_tables();
+		} elseif ($table=='add-new-table') {
+			return static::add_new_table();
 		} elseif (empty($id)) {
 			return static::list_table_records($table);
 		} elseif ($id=='meta') {
@@ -77,28 +172,123 @@ class tables_admin extends tables {
 		} else {
 			return static::edit_record($table,$id,$action);
 		}
-		
+
 	}
-	
+
 	public static function get_module_url() {
 		return modules::get_module_url() . "Tables/";
 	}
-	
+
+	protected static function add_new_table() {
+		global $local,$db, $s_user;
+
+		if (!$s_user->check_right('Tables','Table Actions','Add Table')) {
+			header("Location: " . static::get_module_url() );
+			exit;
+			return;
+		}
+
+		$output = array('html' => '<h3>Add New Table</h3>');
+
+		$output['script'] = array(
+			"{$local}script/jquery.min.js",
+			get_public_location(__DIR__ . "/js/create-table.js")
+		);
+
+		$existing_tables = static::get_users_viewable_tables();
+		$output['script'][] = "var tables = ".json_encode($existing_tables).";";
+
+		$output['css'] = array(get_public_location(__DIR__ . '/style/new-table.css'));
+
+		$types = array(
+			'int',
+			'varchar',
+			'text',
+			'float',
+			'money',
+			'date',
+			'datetime'
+		);
+
+
+		$output['html'] .= "
+			<form id='new-table-form' method='post' action=''>
+				<p>
+					<label for='table-name'>Table Name:</label>
+					<input id='table-name' name='table-name' placeholder='Table Name' />
+				</p>
+
+				<table>
+					<thead>
+						<tr>
+							<th></th>
+							<th>Field</th>
+							<th>Type</th>
+							<th>Extra</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr>
+							<td colspan='100%'>
+								<button type='button' id='add-new-field'>Add Field</button>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+
+				<h4>Table Rights:</h4>
+				<table>
+					<thead>
+						<tr>
+							<th>Group</th>
+							<th>Add</th>
+							<th>Edit</th>
+							<th>Delete</th>
+							<th>View</th>
+						</tr>
+					</thead>
+					<tbody>";
+		if ($s_user->check_right('Users','Rights','Create Rights') && $s_user->check_right('Users','Rights','Assign Rights')) {
+			$groups = users_admin::get_groups();
+			foreach($groups as $group)
+				$output['html'] .= "
+						<tr>
+							<td>{$group['NAME']}</td>
+							<td><input type='checkbox' value='{$group['ID']}' name='rights[Add][]' /></td>
+							<td><input type='checkbox' value='{$group['ID']}' name='rights[Edit][]' /></td>
+							<td><input type='checkbox' value='{$group['ID']}' name='rights[Delete][]' /></td>
+							<td><input type='checkbox' value='{$group['ID']}' name='rights[View][]' /></td>
+						</tr>";
+		}
+
+		$output['html'] .= "
+					</tbody>
+				</table>
+				<p style='text-align: right;'>
+					<input type='submit' value='Create Table' />
+				</p>
+			</form>
+		";
+
+		return $output;
+	}
+
 	protected static function list_tables() {
 		global $db;
 		$output = array('html' => '<h3>Table Administration</h3>');
-		
+
+		$output['html'] .= "<p><a href='".static::get_module_url()."add-new-table'>Add New Table</a></p>";
 		$output['html'] .= "<ol>";
 		$all_tables = static::get_users_viewable_tables();
 		foreach($all_tables as $table) {
 			$output['html'] .= "<li><a href='".static::get_module_url()."$table'>$table</a></li>";
 		}
 		$output['html'] .= "</ol>";
-		
+
 		return $output;
-		
+
 	}
-	
+
 	protected static function list_table_records($table_name) {
 		global $local,$db,$s_user;
 		if (!$s_user->check_right('Tables',$table_name,'View')) {
@@ -127,23 +317,23 @@ class tables_admin extends tables {
 		foreach($records as $row) {
 			$output['html'] .= "
 				<tr>";
-				
+
 				$deleteLink = "";
 				$updateLink = "";
 				$PK = static::get_primary_key($table_name)[0]['COLUMN_NAME'];
 				$link = make_url_safe($row[$PK]);
 				if ($s_user->check_right('Tables',$table_name,'Delete'))
-					$deleteLink = "<a href='".static::get_module_url()."$table_name/$link/delete/' title='Click here to delete this row.'><img src='{$local}images/icon-delete.png' alt='Delete Row' /></a>";
+					$deleteLink = "<a href='".static::get_module_url()."$table_name/$link/delete' title='Click here to delete this row.'><img src='{$local}images/icon-delete.png' alt='Delete Row' /></a>";
 				if ($s_user->check_right('Tables',$table_name,'Edit'))
-					$updateLink = "<a href='".static::get_module_url()."$table_name/$link/edit/' title='Click here to edit this row.'><img src='{$local}images/icon-edit.png' alt='Edit Row' /></a>";
+					$updateLink = "<a href='".static::get_module_url()."$table_name/$link' title='Click here to edit this row.'><img src='{$local}images/icon-edit.png' alt='Edit Row' /></a>";
 				$output['html'] .= "
 				<td>
 					$updateLink
 					$deleteLink
 				</td>";
-				
-				
-				
+
+
+
 			foreach($columns as $column) {
 				if (strcmp($column['CONSTRAINT_NAME'],'PRIMARY')==0) {
 					/* Primary key - make it a link... */
@@ -157,7 +347,7 @@ class tables_admin extends tables {
 					array_push($params,array("type" => "s", "value" => $row[$column['COLUMN_NAME']]));
 					$result = $db->run_query($query,$params);
 					if (!empty($result)) $row[$column['COLUMN_NAME']] = $result[0]['display'];
-				
+
 				}
 				$output['html'] .= "<td>{$row[$column['COLUMN_NAME']]}</td>";
 			}
@@ -168,14 +358,14 @@ class tables_admin extends tables {
 			</tbody>
 		</table>
 		<p><a href='".static::get_module_url()."'>Return to Table Listing...</a></p>";
-		
+
 		return $output;
 	}
-	
+
 	protected static function edit_table_meta($table_name) {
 		global $local,$db;
 		$output = array("html" => "<h3>$table_name Meta</h3>","css" => array(),'script' => array());
-		
+
 		array_push(
 			$output['script'],
 			"{$local}script/jquery.min.js",
@@ -184,13 +374,13 @@ class tables_admin extends tables {
 			"{$local}script/ckeditor/adapters/jquery.js",
 			get_public_location(__DIR__ . '/js/table-metas.js')
 		);
-		
+
 		array_push(
 			$output['css'],
 			"{$local}style/jquery-ui.css",
 			get_public_location(__DIR__ . "/style/table-meta.css")
 		);
-		
+
 		$query = "
 			SELECT *
 			FROM _TABLE_INFO
@@ -217,11 +407,11 @@ class tables_admin extends tables {
 				'LINK_BACK_TO_TABLE' => null,
 				'DETAILED_MENU_OPTIONS' => null,
 			);
-			
+
 		$null_cbs = array();
 		foreach($table_info as $key=>$value)
 			$null_cbs[$key] = is_null($value) ? 'checked="checked"' : '';
-		
+
 		$query = "
 			SELECT META_NAME, META_CONTENT
 			FROM _TABLE_METAS
@@ -234,7 +424,7 @@ class tables_admin extends tables {
 		if (!empty($metas)) {
 			foreach($metas as &$meta)
 				$meta = $meta[0];
-				
+
 			if (!isset($metas['description']))
 				$metas['description'] = "";
 			if (!isset($metas['keywords']))
@@ -245,7 +435,7 @@ class tables_admin extends tables {
 				'keywords' => ''
 			);
 		}
-		
+
 		// Really not a fan of hardcoding here
 		$output['html'] .=<<<TTT
 			<form method="post" action="">
@@ -311,7 +501,7 @@ TTT;
 							<textarea name="meta[{$key}]">{$value}</textarea>
 						</td>
 					</tr>
-					
+
 TTT;
 		}
 		$output['html'] .= <<<TTT
@@ -331,29 +521,29 @@ TTT;
 			</form>
 TTT;
 
-		
-		
+
+
 		$output['html'] .= "<p><a href='".static::get_module_url()."$table_name'>Return to $table_name record listing...</a></p>";
-		
+
 		return $output;
 	}
-	
+
 	public static function edit_record($table_name, $id=null, $action="") {
 		global $local, $db,$s_user;
-		
+
 		if ($id == null)
 			$to_check = 'Add';
 		elseif ($action=="")
 			$to_check = "Edit";
 		else
-			$to_check = $action;
+			$to_check = ucfirst($action);
 		if (!$s_user->check_right('Tables',$table_name,$to_check))
 		{
 			header("Location: " . static::get_module_url() . $table_name);
 			exit;
 			return;
 		}
-		
+
 		$output = array('html' => '', 'script' => array(
 			"{$local}script/jquery.min.js",
 			"{$local}script/ckeditor/ckeditor.js",
@@ -364,9 +554,9 @@ TTT;
 					});
 				})'
 		), 'css' => array());
-		
+
 		$table = new Tables($table_name,$id);
-		
+
 		if ($action == 'delete') {
 			$table->delete_record();
 			Layout::set_message("Record deleted.","success");
@@ -374,10 +564,10 @@ TTT;
 			exit;
 			die;
 		}
-		
+
 		$columns = $table->get_columns();
 		$data = $table->get_records();
-		
+
 		$action = 'edit';
 		if (empty($id)) {
 			$action = 'add';

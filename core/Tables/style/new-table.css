@@ -1,0 +1,9 @@
+#new-table-form table td {vertical-align: top;}
+#new-table-form table label {display: block;} 
+.required-missing{color: red;} 
+input.required-missing {color: inherit;} 
+.required-missing::-webkit-input-placeholder {color: red;}
+.required-missing::-moz-placeholder {color: red;}
+.required-missing:-moz-placeholder {color: red;}
+.required-missing:-ms-input-placeholder {color: red;}
+img.delete {cursor: pointer;}

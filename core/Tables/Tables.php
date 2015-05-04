@@ -1,20 +1,20 @@
 <?php
 /*
- * The tables class is a catch-all for handling any requests to view table data.  
+ * The tables class is a catch-all for handling any requests to view table data.
  * It uses the _TABLE_INFO table (which can be accessed through this class!) to determine how to display each tables' data.
  */
- 
+
  define('SHORT_DISPLAY',1);
  define('PREVIEW_DISPLAY',2);
  define('FULL_DISPLAY',3);
 class tables extends module {
-	
+
 	/* The columns and primary key of a table object... */
 	protected $table_name;
 	protected $columns;
 	protected $PK;
 	protected $id;
-	
+
 	/* constructor */
 	public function __construct($table,$id = null) {
 		/* Confirm table is real, then load table columns and primary key... */
@@ -25,12 +25,12 @@ class tables extends module {
 			$this->id = $id;
 		}
 	}
-	
+
 	public function set_id($id) {
 		/* Sets table id to $id*/
 		$this->id = $id;
 	}
-	
+
 	/*
 	 * Returns all records in table.
 	 * If $id is set, only returns the one record...
@@ -60,7 +60,7 @@ class tables extends module {
 			else return $result[0];
 		}
 	}
-	
+
 	public function save($data) {
 		global $db;
 		if (empty($this->id)) {
@@ -91,7 +91,7 @@ class tables extends module {
 				Database::param_type_check($column['DATA_TYPE'],$params[count($params)-1]['type']);
 			}
 			$query .= implode(", ",$sets) . " WHERE ";
-			
+
 			if (count($this->PK)==1) {
 				$query .= "{$this->PK[0]['COLUMN_NAME']} = ?";
 				array_push(
@@ -119,9 +119,9 @@ class tables extends module {
 			return true;
 		}
 	}
-	
+
 	/*
-	 * 
+	 *
 	 * */
 	public function delete_record() {
 		global $db;
@@ -142,8 +142,8 @@ class tables extends module {
 		return true;
 	}
 	/*
-	 * Updates the _TABLE_INFO and _TABLE_META records associated with this table... 
-	 * 
+	 * Updates the _TABLE_INFO and _TABLE_META records associated with this table...
+	 *
 	 * */
 	public function update_table_info($data) {
 		global $db;
@@ -155,17 +155,17 @@ class tables extends module {
 		$meta_key_params = array(
 			array("type" => "s", "value" => $this->table_name)
 		);
-		
+
 		if (!empty($data['meta'])) {
 			/* Save each meta record... */
 			$query = "
-				INSERT INTO _TABLE_METAS (TABLE_NAME, META_NAME, META_CONTENT) 
-				VALUES (?,?,?) 
+				INSERT INTO _TABLE_METAS (TABLE_NAME, META_NAME, META_CONTENT)
+				VALUES (?,?,?)
 				ON DUPLICATE KEY UPDATE META_CONTENT = VALUES(META_CONTENT);
 			";
 			foreach($data['meta'] as $key=>$value) {
 				if ($value === "") continue;
-				
+
 				$params = array (
 					array("type" => "s", "value" => $this->table_name),
 					array("type" => "s", "value" => $key),
@@ -181,8 +181,8 @@ class tables extends module {
 		/* Finally, remove any metas no longer in use... */
 		$query = "
 			DELETE FROM _TABLE_METAS
-			WHERE 
-				TABLE_NAME = ? AND 
+			WHERE
+				TABLE_NAME = ? AND
 				META_NAME NOT IN (".substr(str_repeat("?,",count($meta_key_params)-1),0,-1).")
 		";
 		$db->run_query($query,$meta_key_params);
@@ -191,12 +191,11 @@ class tables extends module {
 	public function get_columns() {
 		return $this->columns;
 	}
-	
+
 	public function get_key() {
 		return $this->PK;
 	}
-	
-	
+
 	public static function is_table($table) {
 		global $db;
 		/* Returns true if table is a table... */
@@ -211,7 +210,7 @@ class tables extends module {
 		$result = $db->run_query($query,$params);
 		return $result[0]['is_table']==1;
 	}
-	
+
 	public static function table_has_column($table,$column)
 	{
 		global $db;
@@ -228,7 +227,7 @@ class tables extends module {
 		$result = $db->run_query($query,$params);
 		return $result[0]['has_column']==1;
 	}
-	
+
 	/* Returns all tables Session User has rights to view... */
 	public static function get_users_viewable_tables() {
 		global $db,$s_user;
@@ -242,9 +241,9 @@ class tables extends module {
 		}
 		return $tables;
 	}
-	
-	
-	
+
+
+
 	/* Returns a multi-dimensional array of menu options for this module (including sub-menus) */
 	public static function menu() {
 		global $db;
@@ -296,10 +295,10 @@ class tables extends module {
 					);
 			}
 		}
-		
+
 		return $menu;
 	}
-	
+
 	public static function decode_menu($args) {
 		/* Decodes the menu args and returns the appropriate HREF */
 		global $db;
@@ -317,8 +316,8 @@ class tables extends module {
 		);
 		$result = $db->run_query($query,$params);
 		extract($result[0]);
-		
-		
+
+
 		$url.= "$table";
 		if (empty($args)) return $url;
 		/* Get the ID */
@@ -337,11 +336,11 @@ class tables extends module {
 		$query .= implode(" AND ", $clause);
 		$display = $db->run_query($query,$params);
 		if (empty($display)) return $url;
-		
+
 		if (!empty($table)) $url .= "/";
-		return $url . make_url_safe($display[0]['DISPLAY'],ENT_QUOTES) ;		
+		return $url . make_url_safe($display[0]['DISPLAY'],ENT_QUOTES) ;
 	}
-	
+
 	public static function install() {
 		global $db;
 		$query = "
@@ -369,10 +368,19 @@ class tables extends module {
 		$db->run_query($query);
 		return true;
 	}
-	
+
 	public static function required_rights() {
 		global $db;
-		$required = array('Tables' => array());
+		$required = array(
+			'Tables' => array(
+				'Table Actions' => array(
+					'Add Table' => array(
+						'description' => 'Allows user to create a new table.',
+						'default_groups' => array('Admin')
+					)
+				)
+			)
+		);
 		$query = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES T WHERE T.TABLE_SCHEMA = ?";
 		$params = array(
 			array("type" => "s", "value" => $db->get_db_name())
@@ -406,13 +414,13 @@ class tables extends module {
 		}
 		return $required;
 	}
-	
+
 	public static function get_primary_key($table_name) {
 		global $db;
 		/* Returns the primary key of the table... */
 		$query = "SELECT COLUMN_NAME
 		FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
-		WHERE 
+		WHERE
 			CONSTRAINT_SCHEMA = ? AND
 			TABLE_NAME = ? AND
 			CONSTRAINT_NAME = 'PRIMARY'";
@@ -422,7 +430,7 @@ class tables extends module {
 		);
 		return $db->run_query($query,$params);
 	}
-	
+
 	public static function get_table_columns($table_name) {
 		/* Returns the columns of a given table, and which tables they reference (if applicable) */
 		global $db;
@@ -430,12 +438,12 @@ class tables extends module {
 			CASE WHEN C.EXTRA RLIKE 'auto_increment' THEN 1 ELSE 0 END as IS_AUTO_INCREMENT,
 			CASE C.IS_NULLABLE WHEN 'YES' THEN 1 ELSE 0 END AS IS_NULLABLE,
 			K.REFERENCED_TABLE_NAME, K.REFERENCED_COLUMN_NAME, K.CONSTRAINT_NAME
-			FROM INFORMATION_SCHEMA.COLUMNS C 
-			LEFT JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE K ON 
-				C.TABLE_SCHEMA = K.TABLE_SCHEMA AND 
-				C.TABLE_NAME = K.TABLE_NAME AND 
-				C.COLUMN_NAME = K.COLUMN_NAME 
-			WHERE C.TABLE_NAME = ? AND C.TABLE_SCHEMA = ? 
+			FROM INFORMATION_SCHEMA.COLUMNS C
+			LEFT JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE K ON
+				C.TABLE_SCHEMA = K.TABLE_SCHEMA AND
+				C.TABLE_NAME = K.TABLE_NAME AND
+				C.COLUMN_NAME = K.COLUMN_NAME
+			WHERE C.TABLE_NAME = ? AND C.TABLE_SCHEMA = ?
 			ORDER BY C.ORDINAL_POSITION";
 		$params = array(
 			array("type" => "s", "value" => $table_name),
@@ -443,7 +451,7 @@ class tables extends module {
 		);
 		return $db->run_query($query,$params);
 	}
-	
+
 	public static function sql_decode_display($table_name,$display=SHORT_DISPLAY) {
 		/* This function is used to get the SQL to display a given table */
 		/* Allowed values for $display: SHORT_DISPLAY, PREVIEW_DISPLAY, FULL_DISPLAY constants (valued at 1,2, and 3) */
@@ -461,7 +469,7 @@ class tables extends module {
 				$display .= "{{$key['COLUMN_NAME']}}";
 			}
 		}
-		
+
 		$table_info = static::get_table_columns($table_name);
 		$str_parts = array(array("string"=>$display));
 		foreach($table_info as $column) {
@@ -475,7 +483,7 @@ class tables extends module {
 					$afterString = array("string" => substr($part['string'],$pos+strlen($column['COLUMN_NAME'])+2));
 					$beforeArr = array_slice($str_parts,0,$idx);
 					$afterArr = array_slice($str_parts,$idx+1);
-					
+
 					$new_parts = $beforeArr;
 					if (!empty($beforeString['string']))
 						$new_parts = array_merge($new_parts,array($beforeString));
@@ -483,7 +491,7 @@ class tables extends module {
 					if (!empty($afterString['string']))
 						$new_parts = array_merge($new_parts,array($afterString));
 					$new_parts = array_merge($new_parts,$afterArr);
-					
+
 					$str_parts = $new_parts;
 				}
 			}
@@ -505,7 +513,7 @@ class tables extends module {
 		$condition .= ")";
 		return array('concat' => $condition, 'params' => $params);
 	}
-	
+
 	/* Outputs available tables for viewing... */
 	protected static function view_tables() {
 		global $db,$local;
@@ -528,7 +536,7 @@ class tables extends module {
 				/* Only display table if they have the right to view it... */
 				if ($user->check_right('Tables',$t['TABLE_NAME'],'View'))
 					$output['html'] .= "<li><a href='".static::get_module_url()."{$t['SLUG']}'>{$t['TABLE_NAME']}</a></li>";
-				elseif (users::get_right_id('Tables',$t['TABLE_NAME'],'View')===false) 
+				elseif (users::get_right_id('Tables',$t['TABLE_NAME'],'View')===false)
 					$tables_no_rights[] = $t['TABLE_NAME'];
 				
 			}
@@ -536,7 +544,7 @@ class tables extends module {
 			if (!empty($tables_no_rights)) {
 				$query = "SELECT ID, NAME FROM _GROUPS";
 				$groups = group_numeric_by_key($db->run_query($query),'ID');
-				
+
 				array_push(
 					$output['script'],
 					"{$local}script/jquery.min.js",
@@ -551,7 +559,7 @@ class tables extends module {
 				}
 				$output['html'] .= "</ul>";
 			}
-			
+
 			return $output;
 	}
 	protected static function view_table($table) {
@@ -563,19 +571,26 @@ class tables extends module {
 			exit();
 			return;
 		}
-		
+
 		$query = "SELECT *
-			FROM _TABLE_INFO 
+			FROM _TABLE_INFO
 			WHERE TABLE_NAME = ?";
 		$params = array(
 			array("type" => "s", "value" => $table)
 		);
 		$table_info = $db->run_query($query,$params);
-		
+
 		$query = "SELECT *
 			FROM $table";
 		$data = $db->run_query($query);
-		if (!empty($table_info)) $table_info = $table_info[0];
+		if (!empty($table_info)) {
+			$table_info = $table_info[0];
+			$table_info['SLUG'] = is_null($table_info['SLUG']) ? $table : $table_info['SLUG'];
+			if ($table_info['SLUG'] > "") $table_info['SLUG'] .= "/";
+		}
+		else {
+			$table_info['SLUG'] = "$table/";
+		}
 		if (empty($table_info['PREVIEW_DISPLAY'])) {
 			$output['html'] .= "<table>
 				<thead>
@@ -585,19 +600,19 @@ class tables extends module {
 				$output['html'] .= "
 						<th>{$column['COLUMN_NAME']}</th>";
 			}
-			$output['html'] .= "	   
+			$output['html'] .= "
 					</tr>
 				</thead>
 				<tbody>";
 			if (!empty($data)) {
 				foreach($data as $row) {
-					if (!empty($table_info['SHORT_DISPLAY'])) 
+					if (!empty($table_info['SHORT_DISPLAY']))
 						$link = make_url_safe(replace_formatted_string($table_info['SHORT_DISPLAY'],"{","}",$row),ENT_QUOTES);
 					else {
 						$PK = static::get_primary_key($table)[0]['COLUMN_NAME'];
 						$link = make_url_safe($row[$PK]);
 					}
-					
+
 					$output['html'] .= "
 					<tr>";
 
@@ -605,11 +620,11 @@ class tables extends module {
 							if (strcmp($column['CONSTRAINT_NAME'],'PRIMARY')==0) {
 								if (empty($table_info['SHORT_DISPLAY'])) {
 									$link = make_url_safe($row[$column['COLUMN_NAME']],ENT_QUOTES);
-									$row[$column['COLUMN_NAME']] = "<a href='".static::get_module_url()."$table/$link/' title='Click to view this record in full.'>{$row[$column['COLUMN_NAME']]}</a>";
-									}
+									$row[$column['COLUMN_NAME']] = "<a href='".static::get_module_url()."{$table_info['SLUG']}{$link}' title='Click to view this record in full.'>{$row[$column['COLUMN_NAME']]}</a>";
+								}
 								else {
 									$link = make_url_safe(replace_formatted_string($table_info['SHORT_DISPLAY'],"{","}",$row),ENT_QUOTES);
-									$row[$column['COLUMN_NAME']] = "<a href='".static::get_module_url()."$table/{$link}/' title='Click to view this record in full.'>{$row[$column['COLUMN_NAME']]}</a>";
+									$row[$column['COLUMN_NAME']] = "<a href='".static::get_module_url()."{$table_info['SLUG']}{$link}' title='Click to view this record in full.'>{$row[$column['COLUMN_NAME']]}</a>";
 								}
 							} elseif (!empty($column['REFERENCED_TABLE_NAME']) && !empty($row[$column['COLUMN_NAME']])) {
 								$concat = static::sql_decode_display($column['REFERENCED_TABLE_NAME']);
@@ -624,7 +639,7 @@ class tables extends module {
 								$refLink = make_url_safe($column['REFERENCED_TABLE_NAME']);
 								/* Only display as link if they have view right to the linking table! */
 								if ($user->check_right('Tables',$column['REFERENCED_TABLE_NAME'],'View'))
-									$row[$column['COLUMN_NAME']] = "<a href='".static::get_module_url()."$refLink/$link/' title='Click to view this related record.'>$display</a>";
+									$row[$column['COLUMN_NAME']] = "<a href='".static::get_module_url()."$refLink/$link' title='Click to view this related record.'>$display</a>";
 								else
 									$row[$column['COLUMN_NAME']] = $display;
 							}
@@ -645,11 +660,11 @@ class tables extends module {
 				$common = array();
 				$short = replace_formatted_string($table_info['SHORT_DISPLAY'],"{","}",$row);
 				$link = make_url_safe($short);
-				$common['link'] = "<a href='".static::get_module_url()."$table/$link/'>$short</a>";
+				$common['link'] = "<a href='".static::get_module_url()."{$table_info['SLUG']}$link'>$short</a>";
 				$display = $table_info['PREVIEW_DISPLAY'];
 				$display = replace_formatted_string($display,"{","}",$row);
 				$display = replace_formatted_string($display,"%","%",$common);
-				
+
 				/* Look for any {FKID_FIELD} or % FKID_HREF %*/
 				$columns = static::get_table_columns($table);
 				foreach($columns as $column) {
@@ -678,14 +693,14 @@ class tables extends module {
 							$fields[] = "{$concat['concat']} as HREF";
 							$params = $concat['params'];
 						}
-						
+
 						$query = "SELECT " . implode(",",$fields) . "
 						FROM {$column['REFERENCED_TABLE_NAME']}
 						WHERE {$column['REFERENCED_COLUMN_NAME']} = ?";
 						array_push($params,
 							array("type" => "s", "value" => $row[$column['COLUMN_NAME']])
 						);
-						
+
 						Database::param_type_check($column['DATA_TYPE'],$params[0]['type']);
 						$FK_data = $db->run_query($query,$params)[0];
 						$fklink = "";
@@ -693,19 +708,19 @@ class tables extends module {
 							$fklink = "".static::get_module_url()."{$column['REFERENCED_TABLE_NAME']}/" . make_url_safe($FK_data['HREF'],ENT_QUOTES) ;
 							unset($FK_data['HREF']);
 						}
-						
+
 						$display = replace_formatted_string($display,"{","}",$FK_data);
 						$display = str_replace("%{$column['COLUMN_NAME']}_HREF%",$fklink,$display);
 					}
 				}
-				
+
 				$output['html'] .= $display;
 			}
 		}
 		$output['html'] .= "<p><a href='".static::get_module_url()."'>Return to Table Listing...</a></p>";
 		return $output;
 	}
-	
+
 	protected static function view_table_record($table,$id) {
 		global $local,$db;
 		$output = array('html' => '', 'script' => array());
@@ -713,7 +728,7 @@ class tables extends module {
 		/* First we need to figure out the WHERE clause... */
 		$condition = static::sql_decode_display($table,SHORT_DISPLAY);
 		$params = array_merge($condition['params'],array(array("type" => "s", "value" => decode_url_safe($id))));
-		
+
 		$query = "SELECT * FROM $table WHERE {$condition['concat']} RLIKE ?";
 		$data = $db->run_query($query,$params);
 		if (!empty($data)) $data = $data[0];
@@ -729,10 +744,10 @@ class tables extends module {
 			exit();
 			return;
 		}
-		
+
 		$query = "
-			SELECT FULL_DISPLAY, IFNULL(LINK_BACK_TO_TABLE,1) AS LINK_BACK_TO_TABLE
-			FROM _TABLE_INFO 
+			SELECT SLUG,FULL_DISPLAY, IFNULL(LINK_BACK_TO_TABLE,1) AS LINK_BACK_TO_TABLE
+			FROM _TABLE_INFO
 			WHERE TABLE_NAME = ?";
 		$params = array(array("type" => "s", "value" => $table));
 		$display = $db->run_query($query,$params);
@@ -748,7 +763,7 @@ class tables extends module {
 						<td>$value</td>
 					</tr>";
 			}
-			$output['html'] .= "	
+			$output['html'] .= "
 				</tbody>
 			</table>";
 		} else {
@@ -773,13 +788,13 @@ class tables extends module {
 							$display['FULL_DISPLAY'] = preg_replace("/{{$column['COLUMN_NAME']}_{$matches['REFERENCED_COLUMN']}}/",$result[0][$matches['REFERENCED_COLUMN']],$display['FULL_DISPLAY']);
 						}
 					}
-					
+
 					if (preg_match("/%{$column['COLUMN_NAME']}_HREF%/",$display['FULL_DISPLAY'])) {
 						//replace with hyperlink to that record...
 						$href = static::get_module_url() ;
 						$query = "
 							SELECT SLUG as table_slug, SHORT_DISPLAY as record_slug
-							FROM _TABLE_INFO 
+							FROM _TABLE_INFO
 							WHERE TABLE_NAME = ?
 						";
 						$params = array(
@@ -794,7 +809,7 @@ class tables extends module {
 							if (is_null($table_slug))
 								$table_slug = $column['REFERENCED_TABLE_NAME'];
 							$href .= $table_slug;
-							if (!empty($record_slug)) 
+							if (!empty($record_slug))
 							{
 								$reference_columns = static::get_table_columns($column['REFERENCED_TABLE_NAME']);
 								$colsToGrab = array();
@@ -821,15 +836,20 @@ class tables extends module {
 							$href .= "/$record_slug";
 							$display['FULL_DISPLAY'] = preg_replace("/%{$column['COLUMN_NAME']}_HREF%/",$href,$display['FULL_DISPLAY']);
 						}
-						
+
 					}
 				}
 			}
 			$output['html'] .= $display['FULL_DISPLAY'];
 		}
-		if ($display['LINK_BACK_TO_TABLE'])
-			$output['html'] .= "<p><a href='".static::get_module_url()."".make_url_safe($table)."/'>Return to $table listing...</a></p>";
-			
+		if ($display['LINK_BACK_TO_TABLE']) {
+			if (array_key_exists('SLUG',$display) && !is_null($display['SLUG'])) {
+				$slug = empty($display['SLUG']) ? '' : $display['SLUG'];
+			} else {
+				$slug = $table;
+			}
+			$output['html'] .= "<p><a href='".static::get_module_url().make_url_safe($slug)."'>Return to $table listing...</a></p>";
+		}
 		/* Now check for any Table METAs */
 		$query = "
 			SELECT *
@@ -844,9 +864,9 @@ class tables extends module {
 			foreach($metas as $meta)
 				$output['meta'][$meta['META_NAME']] = replace_formatted_string($meta['META_CONTENT'],"{","}",$data);
 		}
-		return $output;		
+		return $output;
 	}
-	
+
 	public static function ajax($args,$request) {
 		switch($request['ajax']) {
 			case 'Assign Rights':
@@ -860,16 +880,16 @@ class tables extends module {
 				return array('success' => 1);
 		}
 	}
-	
+
 	public static function post($args,$post) {
 		global $db;
-		/* 
+		/*
 		 * $args[0] = Table Name
 		 * $args[1] = ID
 		 * */
 		/* Confirm args[0] is a valid table name... */
 		$query = "
-			SELECT CASE COUNT(*) WHEN 0 THEN 0 ELSE 1 END as is_table 
+			SELECT CASE COUNT(*) WHEN 0 THEN 0 ELSE 1 END as is_table
 			FROM INFORMATION_SCHEMA.TABLES
 			WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?";
 		$params = array(
@@ -879,16 +899,16 @@ class tables extends module {
 		$result = $db->run_query($query,$params);
 		extract($result[0]);
 		if (!$is_table) return false;
-		
+
 		$condition = static::sql_decode_display($args[0],SHORT_DISPLAY);
 		$params = array_merge($condition['params'],array(array("type" => "s", "value" => decode_url_safe($args[1]))));
-		
+
 		$query = "SELECT * FROM {$args[0]} WHERE {$condition['concat']} RLIKE ?";
 		$data = $db->run_query($query,$params);
 		if (!empty($data)) $data = $data[0];
 		static::edit_record_submit($args[0],$args[1],$data,$post);
 	}
-	
+
 	public static function view($table='', $id='') {
 		global $db,$local;
 		$db_name = $db->get_db_name();
@@ -908,7 +928,7 @@ class tables extends module {
 			$params = array(
 				array("type" => "s", "value" => $table),
 				array("type" => "s", "value" => $db_name)
-				
+
 			);
 			$result = $db->run_query($query,$params);
 			if (empty($result)) {
@@ -938,7 +958,7 @@ class tables extends module {
 				$table = $result[0]['TABLE_NAME'];
 			}
 		}
-		
+
 		if (!empty($table)) {
 			return static::view_table_record($table,$id);
 		} else {
