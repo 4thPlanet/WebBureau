@@ -538,7 +538,7 @@ class tables extends module {
 					$output['html'] .= "<li><a href='".static::get_module_url()."{$t['SLUG']}'>{$t['TABLE_NAME']}</a></li>";
 				elseif (users::get_right_id('Tables',$t['TABLE_NAME'],'View')===false)
 					$tables_no_rights[] = $t['TABLE_NAME'];
-				
+
 			}
 			$output['html'] .= "</ol>";
 			if (!empty($tables_no_rights)) {
@@ -656,6 +656,7 @@ class tables extends module {
 				</tbody>
 			</table>";
 		} else {
+			$output['html'] .= $table_info['PREVIEW_DISPLAY_BEFORE'];
 			foreach($data as $row) {
 				$common = array();
 				$short = replace_formatted_string($table_info['SHORT_DISPLAY'],"{","}",$row);
@@ -713,9 +714,9 @@ class tables extends module {
 						$display = str_replace("%{$column['COLUMN_NAME']}_HREF%",$fklink,$display);
 					}
 				}
-
 				$output['html'] .= $display;
 			}
+			$output['html'] .= $table_info['PREVIEW_DISPLAY_AFTER'];
 		}
 		$output['html'] .= "<p><a href='".static::get_module_url()."'>Return to Table Listing...</a></p>";
 		return $output;
