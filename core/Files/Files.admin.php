@@ -37,11 +37,20 @@ class files_admin extends files {
 				}
 		}
 	}
-	
+
 	public static function post($args,$request) {
 		global $db,$s_user;
 		if (empty($args) && $s_user->check_right('Files','Files','Upload File')) {
 			/* Upload a new file... */
+			$dir = __DIR__ . "/uploads/";
+			if (!file_exists($dir)) {
+				// Create the uploads directory...
+				if ( !is_writable(__DIR__) || !@mkdir($dir,0755)) {
+					layout::set_message("Unable to create uploads directory.  Please confirm server has write access to " . get_public_location(__DIR__), "error");
+					return;
+				}
+			}
+
 			$filename = __DIR__ . "/uploads/tmp" . date('YmdHis') . session_id();
 			if (move_uploaded_file($_FILES['the_file']['tmp_name'],$filename)) {
 				$query = "INSERT INTO _FILES (TITLE,DESCRIPTION) VALUES (?,?)";
@@ -70,7 +79,7 @@ class files_admin extends files {
 		if (empty($file_id)) return static::view_files();
 		else return static::view_file($file_id);
 	}
-	
+
 	protected static function view_files() {
 		global $db,$s_user;
 		$output = array(
@@ -128,7 +137,7 @@ class files_admin extends files {
 		}
 		return $output;
 	}
-	
+
 	protected static function view_file($file_id) {
 		global $db,$local,$s_user;
 		$output = array(
@@ -143,11 +152,11 @@ class files_admin extends files {
 				get_public_location(__DIR__ . '/js/file-admin.js')
 			)
 		);
-		
+
 		$query = "SELECT ID,FILENAME,TITLE,DESCRIPTION,UPLOAD_DATE FROM _FILES WHERE ID = ?";
 		$params = array(
 			array("type" => "i", "value" => $file_id)
-		);	
+		);
 		$result = $db->run_query($query,$params);
 		if (empty($result)) {
 			header("Location: " . modules::get_module_url() . "Files");
@@ -162,12 +171,12 @@ class files_admin extends files {
 		$output['html'] .= "</p>";
 		$output['html'] .= "<iframe src='".get_public_location($file_info['FILENAME'])."'></iframe>";
 		$output['html'] .= "<p><a href='".get_public_location($file_info['FILENAME'])."' target='_blank'>Open in new tab/window</a></p>";
-		
+
 		if ($s_user->check_right('Files','Files','Edit File'))
 			$output['html'] .= "<p><a href='#' id='file-delete'>Delete File</a></p>";
-		
+
 		$output['html'] .= "<p><a href='".modules::get_module_url()."Files'>Return to Files</a></p>";
-		
+
 		return $output;
 	}
 }
