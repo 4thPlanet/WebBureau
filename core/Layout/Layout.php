@@ -1,14 +1,14 @@
 <?php
 
-/*
- * The Layout class covers 2 core tables: _AREAS and _LAYOUT.
+/* 
+ * The Layout class covers 2 core tables: _AREAS and _LAYOUT.  
  * _AREAS is a simple table listing each section which can exist on the page.
  * _LAYOUT describes which widgets go in each page
  */
-class layout extends module {
+class layout extends module {	
 	public static function install() {
 		global $db;
-
+		
 		require_once("Layout.MainContent.php");
 		layout_main_content::install();
 
@@ -27,13 +27,13 @@ class layout extends module {
 				SELECT 'left-sidebar' as AREA_NAME,'The left side of the page' as DESCRIPTION, 20 as HTML_ORDER UNION
 				SELECT 'right-sidebar' as AREA_NAME,'The right side of the page' as DESCRIPTION, 30 as HTML_ORDER UNION
 				SELECT 'footer' as AREA_NAME,'The bottom of the page' as DESCRIPTION, 50 as HTML_ORDER UNION
-				SELECT 'main-content' as AREA_NAME,'The main content of the page' as DESCRIPTION, 40 as HTML_ORDER
+				SELECT 'main-content' as AREA_NAME,'The main content of the page' as DESCRIPTION, 40 as HTML_ORDER 
 			) tmp
-			LEFT JOIN _AREAS A ON tmp.AREA_NAME  = A.AREA_NAME
+			LEFT JOIN _AREAS A ON tmp.AREA_NAME  = A.AREA_NAME 
 			WHERE A.ID IS NULL
 			ORDER BY tmp.HTML_ORDER;";
 		$db->run_query($query);
-
+		
 		$query = "CREATE TABLE IF NOT EXISTS _LAYOUT (
 			ID int AUTO_INCREMENT,
 			AREA_ID int,
@@ -45,7 +45,7 @@ class layout extends module {
 			FOREIGN KEY (WIDGET_ID) REFERENCES _WIDGETS(ID)
 		);";
 		$db->run_query($query);
-
+		
 		$query = "CREATE TABLE IF NOT EXISTS _LAYOUT_RESTRICTIONS (
 			ID int AUTO_INCREMENT,
 			LAYOUT_ID int,
@@ -55,7 +55,7 @@ class layout extends module {
 			FOREIGN KEY (MODULE_ID) REFERENCES _MODULES(ID) ON DELETE CASCADE ON UPDATE CASCADE
 		)";
 		$db->run_query($query);
-
+		
 		$query = "INSERT INTO _LAYOUT (AREA_ID, WIDGET_ID, DISPLAY_ORDER)
 		SELECT A.ID, W.ID, 0
 		FROM _LAYOUT L
@@ -70,11 +70,11 @@ class layout extends module {
 	public static function set_message($message,$class='') {
 		$_SESSION[__CLASS__]['message'][] = array('class' => $class, 'message' => $message);
 	}
-
+	
 	public static function ajax($args,$request) {}
-
+	
 	public static function menu() {return false;}
-
+	
 	public static function view() {
 		global $local;
 		header("Location: $local");
@@ -89,7 +89,7 @@ class layout extends module {
 			JOIN _LAYOUT L ON L.AREA_ID = A.ID
 			ORDER BY A.HTML_ORDER";
 		$areas = $db->run_query($query);
-
+		
 		foreach ($areas as $area) {
 			$area_content[$area['AREA_NAME']] = array(
 				'css' => array(),
@@ -111,13 +111,12 @@ class layout extends module {
 			);
 			$widgets = $db->run_query($query,$params);
 			$display_area = false;
-			$args = isset($_GET['args']) ? $_GET['args'] : array();
 			foreach($widgets as $widget) {
 				if (!empty($widget['RIGHT']) && (empty($s_user) || !$s_user->check_right($widget['MODULE'],$widget['TYPE'],$widget['RIGHT']))) continue;
-
+				
 				if (!is_null($widget['BLACKLIST_RESTRICTED'])) {
 					/* Blacklist/Whitelist check */
-					$args_copy = $args;
+					$args_copy = $_GET['args'];
 					$module = module::get_module($args_copy);
 					$query = "
 						SELECT CASE COUNT(*) WHEN 0 THEN 0 ELSE 1 END AS module_hit
@@ -129,15 +128,15 @@ class layout extends module {
 						array("type" => "i", "value" => $module['ID'])
 					);
 					$result = $db->run_query($query,$params);
-					if ($widget['BLACKLIST_RESTRICTED'] == $result[0]['module_hit'])
+					if ($widget['BLACKLIST_RESTRICTED'] == $result[0]['module_hit']) 
 						continue;
 				}
-
+				
 				$display_area = true;
 				$response = parent::widget($widget['ID']);
 				if (!empty($response['title'])) $page_title = $response['title'];
 				if (!is_array($response)) $response = array('html' => $response);
-
+				
 				$area_content[$area['AREA_NAME']] = array_merge_recursive($area_content[$area['AREA_NAME']],$response);
 				$area_content[$area['AREA_NAME']]['widgets'][] = array(
 					'class' => strtolower(
@@ -172,15 +171,15 @@ class layout extends module {
 					else echo "<script type='text/Javascript'>$script</script>";
 				}
 			} else $initial['script'] = array();
-			if (!empty($initial['css'])) {
+			if (!empty($initial['css'])) { 
 				foreach($initial['css'] as $css) {
-					if (filter_var(url_protocol_check($css), FILTER_VALIDATE_URL))
+					if (filter_var(url_protocol_check($css), FILTER_VALIDATE_URL)) 
 						echo "<link rel='stylesheet' type='text/css' href='$css' />";
 					else echo "<style type='text/css'>$css</style>";
 				}
 				$initial['css'][] = "{$local}style/style.css";
 			} else $initial['css'] = array("{$local}style/style.css");
-			if (!empty($initial['meta'])) foreach($initial['meta'] as $key=>$value)
+			if (!empty($initial['meta'])) foreach($initial['meta'] as $key=>$value) 
 				echo "<meta name='$key' content='$value' />";
 		} else {
 			$initial = array('css' => array("{$local}style/style.css"),'script' => array());
@@ -189,7 +188,7 @@ class layout extends module {
 		foreach($area_content as $area=>$content) {
 			if (!empty($content['css'])) foreach($content['css'] as $css) {
 				if (array_search($css,$loaded_sources['css'])!==false) continue;
-				if (filter_var(url_protocol_check($css), FILTER_VALIDATE_URL))
+				if (filter_var(url_protocol_check($css), FILTER_VALIDATE_URL)) 
 					echo "<link rel='stylesheet' type='text/css' href='$css' />";
 				else echo "<style type='text/css'>$css</style>";
 				$loaded_sources['css'][] = $css;
