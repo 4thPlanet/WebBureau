@@ -135,7 +135,7 @@ class layout extends module {
 
 				$display_area = true;
 				$response = parent::widget($widget['ID']);
-				
+
 				if (empty($response)) continue;
 				if (!empty($response['title'])) $page_title = $response['title'];
 				if (!is_array($response)) $response = array('html' => $response);
@@ -190,14 +190,14 @@ class layout extends module {
 		$loaded_sources = $initial;
 		foreach($area_content as $area=>$content) {
 			if (!empty($content['css'])) foreach($content['css'] as $css) {
-				if (array_search($css,$loaded_sources['css'])!==false) continue;
+				if (in_array($css,$loaded_sources['css'])!==false) continue;
 				if (filter_var(url_protocol_check($css), FILTER_VALIDATE_URL))
 					echo "<link rel='stylesheet' type='text/css' href='$css' />";
 				else echo "<style type='text/css'>$css</style>";
 				$loaded_sources['css'][] = $css;
 			}
 			if (!empty($content['script'])) foreach($content['script'] as $script) {
-				if (array_search($script,$loaded_sources['script'])) continue;
+				if (in_array($script,$loaded_sources['script'])) continue;
 				if (filter_var(url_protocol_check($script),FILTER_VALIDATE_URL))
 					echo "<script type='text/Javascript' src='$script'></script>";
 				else echo "<script type='text/Javascript'>$script</script>";
