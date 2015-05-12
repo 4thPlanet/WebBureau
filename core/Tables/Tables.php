@@ -282,8 +282,14 @@ class tables extends module {
 			if (empty($table_info) || !$table_info[0]['DETAILED_MENU']) continue;
 			$PK = implode(",",group_numeric_by_key(static::get_primary_key($table['TABLE_NAME']),'COLUMN_NAME'));
 			$decode = static::sql_decode_display($table['TABLE_NAME'],SHORT_DISPLAY);
-			$query = "SELECT $PK, {$decode['concat']} AS SHORT_DISPLAY
-			FROM {$table['TABLE_NAME']}";
+			$joins = "";
+			if (!empty($decode['joins'])) {
+				foreach($decode['joins'] as $col => $table_join) {
+					$joins .= "LEFT JOIN {$table_join['table']} ON {$table['TABLE_NAME']}.{$col} = {$table_join['table']}.{$table_join['column']} ";
+				}
+			}
+			$query = "SELECT {$table['TABLE_NAME']}.$PK, {$decode['concat']} AS SHORT_DISPLAY
+			FROM {$table['TABLE_NAME']} $joins";
 			$params = $decode['params'];
 			$data = $db->run_query($query,$params);
 			foreach ($data as $row) {
@@ -323,14 +329,21 @@ class tables extends module {
 		/* Get the ID */
 		$PK = static::get_primary_key($TABLE_NAME);
 		$display = static::sql_decode_display($TABLE_NAME,SHORT_DISPLAY);
+		$joins = "";
+		if (!empty($display['joins'])) {
+			foreach($display['joins'] as $col => $table_join) {
+				$joins .= "LEFT JOIN {$table_join['table']} ON {$TABLE_NAME}.{$col} = {$table_join['table']}.{$table_join['column']} ";
+			}
+		}
 		$query = "
 			SELECT {$display['concat']} AS DISPLAY
 			FROM $TABLE_NAME
+			$joins
 			WHERE ";
 		$params = $display['params'];
 		$clause = array();
 		foreach($PK as $key) {
-			$clause[] = "{$key['COLUMN_NAME']} = ?";
+			$clause[] = "{$TABLE_NAME}.{$key['COLUMN_NAME']} = ?";
 			array_push($params,array("type" => "s", "value" => array_shift($args)));
 		}
 		$query .= implode(" AND ", $clause);
@@ -453,7 +466,7 @@ class tables extends module {
 	}
 
 	public static function sql_decode_display($table_name,$display=SHORT_DISPLAY) {
-		/* This function is used to get the SQL to display a given table */
+		/* This function is used to get the SQL to display a given table. */
 		/* Allowed values for $display: SHORT_DISPLAY, PREVIEW_DISPLAY, FULL_DISPLAY constants (valued at 1,2, and 3) */
 		global $db;
 		$query = "SELECT SHORT_DISPLAY FROM _TABLE_INFO WHERE TABLE_NAME = ?";
@@ -472,27 +485,38 @@ class tables extends module {
 
 		$table_info = static::get_table_columns($table_name);
 		$str_parts = array(array("string"=>$display));
+		$joins = array();
 		foreach($table_info as $column) {
 			$idx = -1;
 			while ($idx < count($str_parts)-1) {
 				$part = $str_parts[++$idx];
 				if (empty($part['string'])) continue;
-				$pos = stripos($part['string'],"{{$column['COLUMN_NAME']}}");
-				if ($pos!==false) {
-					$beforeString = array("string" => substr($part['string'],0,$pos));
-					$afterString = array("string" => substr($part['string'],$pos+strlen($column['COLUMN_NAME'])+2));
+				if (preg_match("/^(?<before>.*){{$column['COLUMN_NAME']}}(?<after>.*)$/",$part['string'],$matches)) {
 					$beforeArr = array_slice($str_parts,0,$idx);
 					$afterArr = array_slice($str_parts,$idx+1);
 
 					$new_parts = $beforeArr;
-					if (!empty($beforeString['string']))
-						$new_parts = array_merge($new_parts,array($beforeString));
-					$new_parts = array_merge($new_parts,array(array("field" => $column['COLUMN_NAME'])));
-					if (!empty($afterString['string']))
-						$new_parts = array_merge($new_parts,array($afterString));
-					$new_parts = array_merge($new_parts,$afterArr);
+					if (!empty($matches['before']))
+						$beforeArr = array_merge($beforeArr,array(array("string" => $matches['before'])));
+					if (!empty($matches['after']))
+						$afterArr = array_merge($afterArr,array(array("string" => $matches['after'])));
+					$str_parts = array_merge($beforeArr,array(array("field" => "{$table_name}.{$column['COLUMN_NAME']}")),$afterArr);
+				}
+				if (!empty($column['REFERENCED_TABLE_NAME']) && preg_match("/^(?<before>.*){{$column['COLUMN_NAME']}_(?<fk_col>[\w]+)}(?<after>.*)$/",$part['string'],$matches)) {
+					// possible foreign key column match...
+					if (static::table_has_column($column['REFERENCED_TABLE_NAME'],$matches['fk_col']))
+					{
+						$beforeArr = array_slice($str_parts,0,$idx);
+						$afterArr = array_slice($str_parts,$idx+1);
+						$new_parts = $beforeArr;
+						if (!empty($matches['before']))
+							$beforeArr = array_merge($beforeArr,array(array("string" => $matches['before'])));
+						if (!empty($matches['after']))
+							$afterArr = array_merge($afterArr,array(array("string" => $matches['after'])));
+						$str_parts = array_merge($beforeArr,array(array("field" => "{$column['REFERENCED_TABLE_NAME']}.{$matches['fk_col']}")),$afterArr);
+						$joins[$column['COLUMN_NAME']] = array('table' => $column['REFERENCED_TABLE_NAME'], 'column' => $column['REFERENCED_COLUMN_NAME']);
+					}
 
-					$str_parts = $new_parts;
 				}
 			}
 		}
@@ -511,7 +535,7 @@ class tables extends module {
 		}
 		$condition = substr($condition,0,-1);
 		$condition .= ")";
-		return array('concat' => $condition, 'params' => $params);
+		return array('concat' => $condition, 'params' => $params, 'joins' => $joins);
 	}
 
 	/* Outputs available tables for viewing... */
@@ -606,13 +630,6 @@ class tables extends module {
 				<tbody>";
 			if (!empty($data)) {
 				foreach($data as $row) {
-					if (!empty($table_info['SHORT_DISPLAY']))
-						$link = make_url_safe(replace_formatted_string($table_info['SHORT_DISPLAY'],"{","}",$row),ENT_QUOTES);
-					else {
-						$PK = static::get_primary_key($table)[0]['COLUMN_NAME'];
-						$link = make_url_safe($row[$PK]);
-					}
-
 					$output['html'] .= "
 					<tr>";
 
@@ -623,16 +640,23 @@ class tables extends module {
 									$row[$column['COLUMN_NAME']] = "<a href='".static::get_module_url()."{$table_info['SLUG']}{$link}' title='Click to view this record in full.'>{$row[$column['COLUMN_NAME']]}</a>";
 								}
 								else {
-									$link = make_url_safe(replace_formatted_string($table_info['SHORT_DISPLAY'],"{","}",$row),ENT_QUOTES);
+									$link = make_url_safe(static::decode_display($table_info['SHORT_DISPLAY'],$columns,$row),ENT_QUOTES);
 									$row[$column['COLUMN_NAME']] = "<a href='".static::get_module_url()."{$table_info['SLUG']}{$link}' title='Click to view this record in full.'>{$row[$column['COLUMN_NAME']]}</a>";
 								}
 							} elseif (!empty($column['REFERENCED_TABLE_NAME']) && !empty($row[$column['COLUMN_NAME']])) {
 								$concat = static::sql_decode_display($column['REFERENCED_TABLE_NAME']);
+								$joins = "";
+								if (!empty($concat['joins'])) {
+									foreach($concat['joins'] as $col => $table_join) {
+										$joins .= "LEFT JOIN {$table_join['table']} ON {$column['REFERENCED_TABLE_NAME']}.{$col} = {$table_join['table']}.{$table_join['column']} ";
+									}
+								}
 								$params = $concat['params'];
 								$PKS = static::get_primary_key($column['REFERENCED_TABLE_NAME']);
 								$query = "SELECT {$concat['concat']} as COL_DISPLAY
 									FROM {$column['REFERENCED_TABLE_NAME']}
-									WHERE {$column['REFERENCED_COLUMN_NAME']} = ?";
+									$joins
+									WHERE {$column['REFERENCED_TABLE_NAME']}.{$column['REFERENCED_COLUMN_NAME']} = ?";
 								array_push($params, array("type" => "s", "value" => $row[$column['COLUMN_NAME']]));
 								$display = $db->run_query($query,$params)[0]['COL_DISPLAY'];
 								$link = make_url_safe($display);
@@ -670,7 +694,7 @@ class tables extends module {
 				$columns = static::get_table_columns($table);
 				foreach($columns as $column) {
 					if (empty($column['REFERENCED_TABLE_NAME'])) continue;
-					$regex = "/\{({$column['COLUMN_NAME']})(\_)([^}]+)\}/";
+					$regex = "/\{({$column['COLUMN_NAME']})(\_)(\w+)\}/";
 					preg_match_all($regex,$display,$matches);
 					if (!empty($matches)) {
 						$FK_fields = static::get_table_columns($column['REFERENCED_TABLE_NAME']);
@@ -686,18 +710,25 @@ class tables extends module {
 								}
 							}
 							if (!$legit) unset($fields[$idx]);
-							$field = "$field as {$column['COLUMN_NAME']}_$field";
+							$field = "{$column['REFERENCED_TABLE_NAME']}.$field as {$column['COLUMN_NAME']}_$field";
 						}
 						$params = array();
 						if (preg_match("/%{$column['COLUMN_NAME']}_HREF%/", $display)) {
 							$concat = static::sql_decode_display($column['REFERENCED_TABLE_NAME'],SHORT_DISPLAY);
+							$joins = "";
+							if (!empty($concat['joins'])) {
+								foreach($concat['joins'] as $col => $table_join) {
+									$joins .= "LEFT JOIN {$table_join['table']} ON {$column['REFERENCED_TABLE_NAME']}.{$col} = {$table_join['table']}.{$table_join['column']} ";
+								}
+							}
 							$fields[] = "{$concat['concat']} as HREF";
 							$params = $concat['params'];
 						}
 
 						$query = "SELECT " . implode(",",$fields) . "
 						FROM {$column['REFERENCED_TABLE_NAME']}
-						WHERE {$column['REFERENCED_COLUMN_NAME']} = ?";
+						$joins
+						WHERE {$column['REFERENCED_TABLE_NAME']}.{$column['REFERENCED_COLUMN_NAME']} = ?";
 						array_push($params,
 							array("type" => "s", "value" => $row[$column['COLUMN_NAME']])
 						);
@@ -728,9 +759,15 @@ class tables extends module {
 		$user = users::get_session_user();
 		/* First we need to figure out the WHERE clause... */
 		$condition = static::sql_decode_display($table,SHORT_DISPLAY);
+		$joins = "";
+		if (!empty($condition['joins'])) {
+			foreach($condition['joins'] as $col => $table_join) {
+				$joins .= "LEFT JOIN {$table_join['table']} ON {$table}.{$col} = {$table_join['table']}.{$table_join['column']} ";
+			}
+		}
 		$params = array_merge($condition['params'],array(array("type" => "s", "value" => decode_url_safe($id))));
 
-		$query = "SELECT * FROM $table WHERE {$condition['concat']} RLIKE ?";
+		$query = "SELECT {$table}.* FROM $table $joins WHERE {$condition['concat']} RLIKE ?";
 		$data = $db->run_query($query,$params);
 		if (!empty($data)) $data = $data[0];
 		elseif (empty($data) && empty($id)) return static::view_table($table);
@@ -770,23 +807,24 @@ class tables extends module {
 		} else {
 			$display = $display[0];
 			$display['FULL_DISPLAY'] = replace_formatted_string($display['FULL_DISPLAY'],"{","}",$data);
-			/* Still TODO: Search for {FKID_FIELD} and %FKID_HREF% */
 			$columns = static::get_table_columns($table);
 			foreach($columns as $column) {
 				if ($column['REFERENCED_TABLE_NAME']) {
-					if (preg_match("/{{$column['COLUMN_NAME']}_(?<REFERENCED_COLUMN>(.*))}/",$display['FULL_DISPLAY'],$matches)) {
+					if (preg_match_all("/{{$column['COLUMN_NAME']}_(?<REFERENCED_COLUMN>(.*))}/",$display['FULL_DISPLAY'],$matches)) {
 						//confirm it IS a field...
-						if (static::table_has_column($column['REFERENCED_TABLE_NAME'],$matches['REFERENCED_COLUMN'])) {
-							$query = "
-								SELECT {$matches['REFERENCED_COLUMN']}
-								FROM {$column['REFERENCED_TABLE_NAME']}
-								WHERE {$column['REFERENCED_COLUMN_NAME']} = ?
-							";
-							$params = array(
-								array('type' => 'i', 'value' => $data[$column['COLUMN_NAME']])
-							);
-							$result = $db->run_query($query,$params);
-							$display['FULL_DISPLAY'] = preg_replace("/{{$column['COLUMN_NAME']}_{$matches['REFERENCED_COLUMN']}}/",$result[0][$matches['REFERENCED_COLUMN']],$display['FULL_DISPLAY']);
+						foreach($matches['REFERENCED_COLUMN'] as $referenced_column) {
+							if (static::table_has_column($column['REFERENCED_TABLE_NAME'],$referenced_column)) {
+								$query = "
+									SELECT {$referenced_column}
+									FROM {$column['REFERENCED_TABLE_NAME']}
+									WHERE {$column['REFERENCED_COLUMN_NAME']} = ?
+								";
+								$params = array(
+									array('type' => 'i', 'value' => $data[$column['COLUMN_NAME']])
+								);
+								$result = $db->run_query($query,$params);
+								$display['FULL_DISPLAY'] = preg_replace("/{{$column['COLUMN_NAME']}_{$referenced_column}}/",$result[0][$referenced_column],$display['FULL_DISPLAY']);
+							}
 						}
 					}
 
@@ -868,6 +906,84 @@ class tables extends module {
 		return $output;
 	}
 
+	protected static function decode_display($display,$columns,$data) {
+		global $db;
+		$display = replace_formatted_string($display,"{","}",$data);
+		foreach($columns as $column) {
+			if ($column['REFERENCED_TABLE_NAME']) {
+				/* Check for {FKID_<FIELD>}*/
+				if (preg_match_all("/{{$column['COLUMN_NAME']}_(?<REFERENCED_COLUMN>([\w\d]+))}/",$display,$matches)) {
+					//confirm it IS a field...
+					foreach($matches['REFERENCED_COLUMN'] as $referenced_column) {
+						if (static::table_has_column($column['REFERENCED_TABLE_NAME'],$referenced_column)) {
+							$query = "
+								SELECT {$referenced_column}
+								FROM {$column['REFERENCED_TABLE_NAME']}
+								WHERE {$column['REFERENCED_COLUMN_NAME']} = ?
+							";
+							$params = array(
+								array('type' => 'i', 'value' => $data[$column['COLUMN_NAME']])
+							);
+							$result = $db->run_query($query,$params);
+							$display = preg_replace("/{{$column['COLUMN_NAME']}_{$referenced_column}}/",$result[0][$referenced_column],$display);
+						}
+					}
+				}
+				/* Check for %FKID_HREF% */
+				if (preg_match("/%{$column['COLUMN_NAME']}_HREF%/",$display)) {
+					//replace with hyperlink to that record...
+					$href = static::get_module_url() ;
+					$query = "
+						SELECT SLUG as table_slug, SHORT_DISPLAY as record_slug
+						FROM _TABLE_INFO
+						WHERE TABLE_NAME = ?
+					";
+					$params = array(
+						array("type" => "s", "value" => $column['REFERENCED_TABLE_NAME'])
+					);
+					$result = $db->run_query($query,$params);
+					if (empty($result)) {
+						// no slug, short display - use table name and primary key
+						$href .= "{$column['REFERENCED_TABLE_NAME']}/{$data[$column['COLUMN_NAME']]}";
+					} else {
+						extract($result[0]);
+						if (is_null($table_slug))
+							$table_slug = $column['REFERENCED_TABLE_NAME'];
+						$href .= $table_slug;
+						if (!empty($record_slug))
+						{
+							$reference_columns = static::get_table_columns($column['REFERENCED_TABLE_NAME']);
+							$colsToGrab = array();
+							foreach($reference_columns as $ref_column)
+							{
+								if (preg_match("/{{$ref_column['COLUMN_NAME']}}/",$record_slug))
+									$colsToGrab[] = $ref_column['COLUMN_NAME'];
+							}
+							if (!empty($colsToGrab)) {
+								$query = "
+									SELECT ".implode(",",$colsToGrab)."
+									FROM {$column['REFERENCED_TABLE_NAME']}
+									WHERE {$column['REFERENCED_COLUMN_NAME']} = ?
+								";
+								$params = array(
+									array("type" => "i", "value" => $data[$column['COLUMN_NAME']])
+								);
+								$ref_data = $db->run_query($query,$params);
+								$record_slug = make_url_safe(replace_formatted_string($record_slug,"{","}",$ref_data[0]));
+							}
+						} else {
+							$record_slug = make_html_safe($data[$column['COLUMN_NAME']]);
+						}
+						$href .= "/$record_slug";
+						$display = preg_replace("/%{$column['COLUMN_NAME']}_HREF%/",$href,$display);
+					}
+
+				}
+			}
+		}
+		return $display;
+	}
+
 	public static function ajax($args,$request) {
 		switch($request['ajax']) {
 			case 'Assign Rights':
@@ -883,31 +999,7 @@ class tables extends module {
 	}
 
 	public static function post($args,$post) {
-		global $db;
-		/*
-		 * $args[0] = Table Name
-		 * $args[1] = ID
-		 * */
-		/* Confirm args[0] is a valid table name... */
-		$query = "
-			SELECT CASE COUNT(*) WHEN 0 THEN 0 ELSE 1 END as is_table
-			FROM INFORMATION_SCHEMA.TABLES
-			WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?";
-		$params = array(
-			array("type" => "s", "value" => $db->get_db_name()),
-			array("type" => "s", "value" => $args[0]),
-		);
-		$result = $db->run_query($query,$params);
-		extract($result[0]);
-		if (!$is_table) return false;
-
-		$condition = static::sql_decode_display($args[0],SHORT_DISPLAY);
-		$params = array_merge($condition['params'],array(array("type" => "s", "value" => decode_url_safe($args[1]))));
-
-		$query = "SELECT * FROM {$args[0]} WHERE {$condition['concat']} RLIKE ?";
-		$data = $db->run_query($query,$params);
-		if (!empty($data)) $data = $data[0];
-		static::edit_record_submit($args[0],$args[1],$data,$post);
+		/* Just a placeholder, nothing can be posted from the public side...*/
 	}
 
 	public static function view($table='', $id='') {

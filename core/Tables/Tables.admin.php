@@ -116,6 +116,8 @@ class tables_admin extends tables {
 						$meta_columns_data[$column['COLUMN_NAME']] = null;
 					elseif (isset($request[$column['COLUMN_NAME']]))
 						$meta_columns_data[$column['COLUMN_NAME']] = $request[$column['COLUMN_NAME']];
+					elseif (in_array($column['DATA_TYPE'],array('bit','boolean')))
+						$meta_columns_data[$column['COLUMN_NAME']] = 0;
 					else
 						$meta_columns_data[$column['COLUMN_NAME']] = null;
 				}
@@ -342,7 +344,13 @@ class tables_admin extends tables {
 				if (!empty($column['REFERENCED_TABLE_NAME']) && !empty($column['REFERENCED_COLUMN_NAME'])) {
 					/* Get Foreign Key SHORT Display */
 					$sql = static::sql_decode_display($column['REFERENCED_TABLE_NAME']);
-					$query = "SELECT {$sql['concat']} as display FROM {$column['REFERENCED_TABLE_NAME']} WHERE {$column['REFERENCED_COLUMN_NAME']} = ?";
+					$joins = "";
+					if (!empty($sql['joins'])) {
+						foreach($sql['joins'] as $col => $table_join) {
+							$joins .= "LEFT JOIN {$table_join['table']} ON {$column['REFERENCED_TABLE_NAME']}.{$col} = {$table_join['table']}.{$table_join['column']} ";
+						}
+					}
+					$query = "SELECT {$sql['concat']} as display FROM {$column['REFERENCED_TABLE_NAME']} $joins WHERE {$column['REFERENCED_TABLE_NAME']}.{$column['REFERENCED_COLUMN_NAME']} = ?";
 					$params = $sql['params'];
 					array_push($params,array("type" => "s", "value" => $row[$column['COLUMN_NAME']]));
 					$result = $db->run_query($query,$params);
@@ -445,47 +453,47 @@ class tables_admin extends tables {
 					</tr>
 					<tr>
 						<td>Slug:</td>
-						<td><input type="checkbox" name="SLUG_null" value="1" {$null_cbs['SLUG']} /></td>
+						<td><input type="checkbox" class="null" id="SLUG_null" name="SLUG_null" value="1" {$null_cbs['SLUG']} /></td>
 						<td><input name="SLUG" value="{$table_info['SLUG']}" /></td>
 					</tr>
 					<tr>
 						<td>Short Display:</td>
-						<td><input type="checkbox" name="SHORT_DISPLAY_null" value="1" {$null_cbs['SHORT_DISPLAY']} /></td>
+						<td><input type="checkbox" class="null" id="SHORT_DISPLAY_null" name="SHORT_DISPLAY_null" value="1" {$null_cbs['SHORT_DISPLAY']} /></td>
 						<td><input name="SHORT_DISPLAY" value="{$table_info['SHORT_DISPLAY']}" /></td>
 					</tr>
 					<tr>
 						<td>Preview Display (Before):</td>
-						<td><input type="checkbox" name="PREVIEW_DISPLAY_BEFORE_null" value="1" {$null_cbs['PREVIEW_DISPLAY_BEFORE']} /></td>
+						<td><input type="checkbox" class="null" id="PREVIEW_DISPLAY_BEFORE_null" name="PREVIEW_DISPLAY_BEFORE_null" value="1" {$null_cbs['PREVIEW_DISPLAY_BEFORE']} /></td>
 						<td><textarea name="PREVIEW_DISPLAY_BEFORE">{$table_info['PREVIEW_DISPLAY_BEFORE']}</textarea></td>
 					</tr>
 					<tr>
 						<td>Preview Display:</td>
-						<td><input type="checkbox" name="PREVIEW_DISPLAY_null" value="1" {$null_cbs['PREVIEW_DISPLAY']} /></td>
+						<td><input type="checkbox" class="null" id="PREVIEW_DISPLAY_null" name="PREVIEW_DISPLAY_null" value="1" {$null_cbs['PREVIEW_DISPLAY']} /></td>
 						<td><textarea name="PREVIEW_DISPLAY">{$table_info['PREVIEW_DISPLAY']}</textarea></td>
 					</tr>
 					<tr>
 						<td>Preview Display (After):</td>
-						<td><input type="checkbox" name="PREVIEW_DISPLAY_AFTER_null" value="1" {$null_cbs['PREVIEW_DISPLAY_AFTER']} /></td>
+						<td><input type="checkbox" class="null" id="PREVIEW_DISPLAY_AFTER_null" name="PREVIEW_DISPLAY_AFTER_null" value="1" {$null_cbs['PREVIEW_DISPLAY_AFTER']} /></td>
 						<td><textarea name="PREVIEW_DISPLAY_AFTER">{$table_info['PREVIEW_DISPLAY_AFTER']}</textarea></td>
 					</tr>
 					<tr>
 						<td>Full Page Display:</td>
-						<td><input type="checkbox" name="FULL_DISPLAY_null" value="1" {$null_cbs['FULL_DISPLAY']} /></td>
-						<td><textarea class="ckeditor" name="FULL_DISPLAY">{$table_info['FULL_DISPLAY']}</textarea></td>
+						<td><input type="checkbox" class="null" id="FULL_DISPLAY_null" name="FULL_DISPLAY_null" value="1" {$null_cbs['FULL_DISPLAY']} /></td>
+						<td><textarea class="ckeditor" name="FULL_DISPLAY" id="FULL_DISPLAY">{$table_info['FULL_DISPLAY']}</textarea></td>
 					</tr>
 					<tr>
 						<td>Link Back to Table?</td>
-						<td><input type="checkbox" name="LINK_BACK_TO_TABLE_null" value="1" {$null_cbs['LINK_BACK_TO_TABLE']} /></td>
+						<td><input type="checkbox" class="null" id="LINK_BACK_TO_TABLE_null" name="LINK_BACK_TO_TABLE_null" value="1" {$null_cbs['LINK_BACK_TO_TABLE']} /></td>
 						<td><input type="checkbox" name="LINK_BACK_TO_TABLE" value="1" {$table_info['LINK_BACK_TO_TABLE']}/></td>
 					</tr>
 					<tr>
 						<td>Row Display - Max</td>
-						<td><input type="checkbox" name="ROW_DISPLAY_MAX_null" value="1" {$null_cbs['ROW_DISPLAY_MAX']} /></td>
+						<td><input type="checkbox" class="null" id="ROW_DISPLAY_MAX_null" name="ROW_DISPLAY_MAX_null" value="1" {$null_cbs['ROW_DISPLAY_MAX']} /></td>
 						<td><input name="ROW_DISPLAY_MAX" value="{$table_info['ROW_DISPLAY_MAX']}" /></td>
 					</tr>
 					<tr>
 						<td>Detailed Menu Options?</td>
-						<td><input type="checkbox" name="DETAILED_MENU_OPTIONS_null" value="1" {$null_cbs['DETAILED_MENU_OPTIONS']} /></td>
+						<td><input type="checkbox" class="null" id="DETAILED_MENU_OPTIONS_null" name="DETAILED_MENU_OPTIONS_null" value="1" {$null_cbs['DETAILED_MENU_OPTIONS']} /></td>
 						<td><input type="checkbox" name="DETAILED_MENU_OPTIONS" value="1" {$table_info['DETAILED_MENU_OPTIONS']}/></td>
 					</tr>
 					<tr>
@@ -602,9 +610,16 @@ TTT;
 				$input = "<textarea id='col$idx' name='col$idx'>{$data[$column['COLUMN_NAME']]}</textarea>";
 			} elseif (!empty($column['REFERENCED_TABLE_NAME'])) {
 				$concat = static::sql_decode_display($column['REFERENCED_TABLE_NAME']);
+				$joins = "";
+				if (!empty($concat['joins'])) {
+					foreach($concat['joins'] as $col => $table_join) {
+						$joins .= "LEFT JOIN {$table_join['table']} ON {$column['REFERENCED_TABLE_NAME']}.{$col} = {$table_join['table']}.{$table_join['column']} ";
+					}
+				}
 				$pk = static::get_primary_key($table_name)[0]['COLUMN_NAME'];
-				$query = "SELECT $pk as PK, {$concat['concat']} as DISPLAY
-					FROM {$column['REFERENCED_TABLE_NAME']}";
+				$query = "SELECT {$column['REFERENCED_TABLE_NAME']}.$pk as PK, {$concat['concat']} as DISPLAY
+					FROM {$column['REFERENCED_TABLE_NAME']}
+					$joins";
 				$params = $concat['params'];
 				$options = $db->run_query($query,$params);
 				$input = "<select id='col$idx' name='col$idx'>
@@ -623,14 +638,14 @@ TTT;
 					array_push(
 						$output['script'],
 						"{$local}script/jquery-ui.min.js",
-						'https://raw.githubusercontent.com/trentrichardson/jQuery-Timepicker-Addon/master/src/jquery-ui-timepicker-addon.js',
+						"{$local}script/jquery-ui-timepicker-addon.js",
 						'$(function() {
 							$(".datetimepicker").datetimepicker();
 						});'
 						);
 					array_push(
 						$output['css'] ,
-						'//ajax.googleapis.com/ajax/libs/jqueryui/1.10.4/themes/smoothness/jquery-ui.css',
+						"{$local}style/jquery-ui.css",
 						"{$local}style/timepicker.css"
 					);
 				}
@@ -659,7 +674,6 @@ TTT;
 				</tbody>
 			</table>
 			</form>";
-		$output['script'][] = "{$local}script/jquery.min.js";
 		$output['script'][] = '$(function() {
 	$(".null").click(function() {
 		if ($(this).not(":checked").length) return;
