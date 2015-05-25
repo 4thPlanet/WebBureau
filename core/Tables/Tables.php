@@ -34,15 +34,24 @@ class tables extends module {
 	/*
 	 * Returns all records in table.
 	 * If $id is set, only returns the one record...
+	 * If returnAll = true, will return all records (will return only one page of records, using paging class, otherwise)
 	 * */
-	public function get_records() {
+	public function get_records($returnAll = false) {
 		global $db;
 		if (empty($this->table_name)) return false;
+		extract($this->get_records_sql());
+
+		$paging = new paging($query,$params);
+		if ($returnAll)
+			$paging->set_per_page($paging->get_record_count());
+
+		return $paging->get_current_page();
+	}
+
+	protected function get_records_sql() {
 		$query = "SELECT * FROM {$this->table_name}";
-		if (empty($this->id))
-			return $db->run_query($query);
-		else {
-			$params = array();
+		$params = array();
+		if (!empty($this->id)) {
 			$query .= " WHERE ";
 			$key_cond = array();
 			if (count($this->PK)==1) {
@@ -55,10 +64,11 @@ class tables extends module {
 				}
 			}
 			$query .= implode(" AND ",$key_cond);
-			$result = $db->run_query($query,$params);
-			if (empty($result)) return false;
-			else return $result[0];
 		}
+		return array(
+			'query' => $query,
+			'params' => $params
+		);
 	}
 
 	public function save($data) {
@@ -586,9 +596,44 @@ class tables extends module {
 
 			return $output;
 	}
+
+	public static function build_foreign_key_link($val,$row,$column)
+	{
+		global $db, $s_user;
+
+		$id = $val;
+
+		/* Get Foreign Key SHORT Display */
+		$sql = static::sql_decode_display($column['REFERENCED_TABLE_NAME']);
+		$joins = "";
+		if (!empty($sql['joins'])) {
+			foreach($sql['joins'] as $col => $table_join) {
+				$joins .= "LEFT JOIN {$table_join['table']} ON {$column['REFERENCED_TABLE_NAME']}.{$col} = {$table_join['table']}.{$table_join['column']} ";
+			}
+		}
+		$query = "SELECT {$sql['concat']} as display FROM {$column['REFERENCED_TABLE_NAME']} $joins WHERE {$column['REFERENCED_TABLE_NAME']}.{$column['REFERENCED_COLUMN_NAME']} = ?";
+		$params = $sql['params'];
+		array_push($params,array("type" => "s", "value" => $val));
+		$result = $db->run_query($query,$params);
+		if (!empty($result)) $val = $result[0]['display'];
+
+		if ($s_user->check_right('Tables',$column['REFERENCED_TABLE_NAME'],'Edit'))
+		{
+			$val = "<a href='".static::get_module_url()."{$column['REFERENCED_TABLE_NAME']}/$id'>$val</a>";
+		}
+
+		return $val;
+	}
+
+	public static function shorten_text_fields($val) {
+		$val = preg_split('/\s/',strip_tags($val), null, PREG_SPLIT_NO_EMPTY);
+		return implode(' ',array_slice($val,0,50));
+	}
+
+
 	protected static function view_table($table) {
 		global $local, $db;
-		$output = array('html' => '', 'script' => array());
+		$output = array('html' => '', 'script' => array(), 'css' => array());
 		$user = users::get_session_user();
 		if (!$user->check_right('Tables',$table,'View')) {
 			header("Location: ".static::get_module_url()."");
@@ -606,7 +651,7 @@ class tables extends module {
 
 		$query = "SELECT *
 			FROM $table";
-		$data = $db->run_query($query);
+
 		if (!empty($table_info)) {
 			$table_info = $table_info[0];
 			$table_info['SLUG'] = is_null($table_info['SLUG']) ? $table : $table_info['SLUG'];
@@ -616,70 +661,49 @@ class tables extends module {
 			$table_info['SLUG'] = "$table/";
 		}
 		if (empty($table_info['PREVIEW_DISPLAY'])) {
-			$output['html'] .= "<table>
-				<thead>
-					<tr>";
-			$columns = static::get_table_columns($table);
-			foreach($columns as $column) {
-				$output['html'] .= "
-						<th>{$column['COLUMN_NAME']}</th>";
-			}
-			$output['html'] .= "
-					</tr>
-				</thead>
-				<tbody>";
-			if (!empty($data)) {
-				foreach($data as $row) {
-					$output['html'] .= "
-					<tr>";
-
-					foreach($columns as $column) {
-							if (strcmp($column['CONSTRAINT_NAME'],'PRIMARY')==0) {
-								if (empty($table_info['SHORT_DISPLAY'])) {
-									$link = make_url_safe($row[$column['COLUMN_NAME']],ENT_QUOTES);
-									$row[$column['COLUMN_NAME']] = "<a href='".static::get_module_url()."{$table_info['SLUG']}{$link}' title='Click to view this record in full.'>{$row[$column['COLUMN_NAME']]}</a>";
-								}
-								else {
-									$link = make_url_safe(static::decode_display($table_info['SHORT_DISPLAY'],$columns,$row),ENT_QUOTES);
-									$row[$column['COLUMN_NAME']] = "<a href='".static::get_module_url()."{$table_info['SLUG']}{$link}' title='Click to view this record in full.'>{$row[$column['COLUMN_NAME']]}</a>";
-								}
-							} elseif (!empty($column['REFERENCED_TABLE_NAME']) && !empty($row[$column['COLUMN_NAME']])) {
-								$concat = static::sql_decode_display($column['REFERENCED_TABLE_NAME']);
-								$joins = "";
-								if (!empty($concat['joins'])) {
-									foreach($concat['joins'] as $col => $table_join) {
-										$joins .= "LEFT JOIN {$table_join['table']} ON {$column['REFERENCED_TABLE_NAME']}.{$col} = {$table_join['table']}.{$table_join['column']} ";
-									}
-								}
-								$params = $concat['params'];
-								$PKS = static::get_primary_key($column['REFERENCED_TABLE_NAME']);
-								$query = "SELECT {$concat['concat']} as COL_DISPLAY
-									FROM {$column['REFERENCED_TABLE_NAME']}
-									$joins
-									WHERE {$column['REFERENCED_TABLE_NAME']}.{$column['REFERENCED_COLUMN_NAME']} = ?";
-								array_push($params, array("type" => "s", "value" => $row[$column['COLUMN_NAME']]));
-								$display = $db->run_query($query,$params)[0]['COL_DISPLAY'];
-								$link = make_url_safe($display);
-								$refLink = make_url_safe($column['REFERENCED_TABLE_NAME']);
-								/* Only display as link if they have view right to the linking table! */
-								if ($user->check_right('Tables',$column['REFERENCED_TABLE_NAME'],'View'))
-									$row[$column['COLUMN_NAME']] = "<a href='".static::get_module_url()."$refLink/$link' title='Click to view this related record.'>$display</a>";
-								else
-									$row[$column['COLUMN_NAME']] = $display;
-							}
-							$output['html'] .= "
-						<td>{$row[$column['COLUMN_NAME']]}</td>";
-					}
-					$output['html'] .= "
-					</tr>";
+			$paging_table = pagingtable_widget::load_paging($query,array());
+			if ($paging_table === false)
+				$paging_table = new pagingtable_widget($query,array());
+			$paging_table->set_per_page(empty($table_info['ROW_DISPLAY_MAX']) ? 10 : $table_info['ROW_DISPLAY_MAX']);
+			$columns = array();
+			$table_columns = static::get_table_columns($table);
+			foreach ($table_columns as $column) {
+				$column_info = array(
+					'column' => $column['COLUMN_NAME'],
+					'display_name' => $column['COLUMN_NAME']
+				);
+				if (!empty($column['REFERENCED_TABLE_NAME']) && !empty($column['REFERENCED_COLUMN_NAME'])) {
+					$column_info['display_function'] = array(__CLASS__,'build_foreign_key_link');
+					$column_info['display_function_add_params'] = array($column);
+				} elseif ($column['DATA_TYPE'] == 'text') {
+					$column_info['display_function'] = array(__CLASS__,'shorten_text_fields');
+					$column_info['nowrap'] = false;
 				}
-			} else {
-				$output['html'] .= "<td colspan='100%'>There are no records for this table...</td>";
+
+				$columns[] = $column_info;
+
 			}
-			$output['html'] .= "
-				</tbody>
-			</table>";
+
+			$paging_table->set_columns($columns);
+			$paging_table_output = $paging_table->build_table();
+			foreach($paging_table_output as $type => $paging_output) {
+				if ($type == 'html')
+					$output['html'] .= $paging_output;
+				else {
+					if (!isset($output[$type])) $output[$type] = array();
+					$output[$type] = array_merge($output[$type],$paging_output);
+				}
+			}
+
+
 		} else {
+			$paging = new paging($query);
+			$paging->set_per_page(empty($table_info['ROW_DISPLAY_MAX']) ? 10 : $table_info['ROW_DISPLAY_MAX']);
+			if (isset($_REQUEST['page'])) {
+				$paging->goto_page($_REQUEST['page']);
+			}
+			$data = $paging->get_current_page();
+
 			$output['html'] .= $table_info['PREVIEW_DISPLAY_BEFORE'];
 			foreach($data as $row) {
 				$common = array();
@@ -723,7 +747,7 @@ class tables extends module {
 							}
 							$fields[] = "{$concat['concat']} as HREF";
 							$params = $concat['params'];
-						}
+						} else $joins = "";
 
 						$query = "SELECT " . implode(",",$fields) . "
 						FROM {$column['REFERENCED_TABLE_NAME']}
@@ -734,20 +758,39 @@ class tables extends module {
 						);
 
 						Database::param_type_check($column['DATA_TYPE'],$params[0]['type']);
-						$FK_data = $db->run_query($query,$params)[0];
-						$fklink = "";
-						if (!empty($FK_data['HREF'])) {
-							$fklink = "".static::get_module_url()."{$column['REFERENCED_TABLE_NAME']}/" . make_url_safe($FK_data['HREF'],ENT_QUOTES) ;
-							unset($FK_data['HREF']);
+						$FK_data = $db->run_query($query,$params);
+						if (!empty($FK_data)) {
+							$FK_data = $FK_data[0];
+							$fklink = "";
+							if (!empty($FK_data['HREF'])) {
+								$fklink = "".static::get_module_url()."{$column['REFERENCED_TABLE_NAME']}/" . make_url_safe($FK_data['HREF'],ENT_QUOTES) ;
+								unset($FK_data['HREF']);
+							}
+							$display = replace_formatted_string($display,"{","}",$FK_data);
+							$display = str_replace("%{$column['COLUMN_NAME']}_HREF%",$fklink,$display);
 						}
 
-						$display = replace_formatted_string($display,"{","}",$FK_data);
-						$display = str_replace("%{$column['COLUMN_NAME']}_HREF%",$fklink,$display);
 					}
 				}
 				$output['html'] .= $display;
 			}
 			$output['html'] .= $table_info['PREVIEW_DISPLAY_AFTER'];
+
+			if ($paging->get_page_count() > 1)
+			{
+				$output['html'] .= "<p id='page-navigation'>";
+				$current_page = $paging->get_page_number();
+				if ($current_page > 1) {
+					$page = $current_page - 1;
+					$output['html'] .= "<a href='".static::get_module_url()."{$table_info['SLUG']}?page={$page}'>Previous</a>";
+				}
+				if ($current_page < $paging->get_page_count()) {
+					$page = $current_page + 1;
+					$output['html'] .= "<a href='".static::get_module_url()."{$table_info['SLUG']}?page={$page}'>Next</a>";
+				}
+				$output['html'] .= "</p>";
+				array_push($output['css'],get_public_location(__DIR__."/style/paging-navigation.css"));
+			}
 		}
 		$output['html'] .= "<p><a href='".static::get_module_url()."'>Return to Table Listing...</a></p>";
 		return $output;

@@ -1,0 +1,10 @@
+{
+	"Module" : "Paging",
+	"Description" : "Handles Paging, Limits",
+	"Core" : 1,
+	"Filename" : "Paging.php",
+	"Class" : "paging",
+	"Requires" : [],
+	"Install Order" : 0,
+	"Helpers" : {}
+}

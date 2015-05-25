@@ -291,6 +291,22 @@ class tables_admin extends tables {
 
 	}
 
+	public static function build_edit_delete_links($id,$row,$table)
+	{
+		global $local,$s_user;
+		$updateLink = "";
+		$deleteLink = "";
+
+		$PK = static::get_primary_key($table);
+		$id = $row[$PK[0]['COLUMN_NAME']];
+
+		if ($s_user->check_right('Tables',$table,'Delete'))
+			$deleteLink = "<a href='".static::get_module_url()."$table/$id/delete' title='Click here to delete this row.'><img src='{$local}images/icon-delete.png' alt='Delete Row' /></a>";
+		if ($s_user->check_right('Tables',$table,'Edit'))
+			$updateLink = "<a href='".static::get_module_url()."$table/$id' title='Click here to edit this row.'><img src='{$local}images/icon-edit.png' alt='Edit Row' /></a>";
+		return "$updateLink $deleteLink";
+	}
+
 	protected static function list_table_records($table_name) {
 		global $local,$db,$s_user;
 		if (!$s_user->check_right('Tables',$table_name,'View')) {
@@ -303,69 +319,45 @@ class tables_admin extends tables {
 		$output['html'] .= "<p><a href='".static::get_module_url() . "$table_name/meta'>Click here to edit Table Info (Display, metas, etc.).</a></p>";
 		if ($s_user->check_right('Tables',$table_name,'Add'))
 			$output['html'] .= "<p><a href='".static::get_module_url() . "$table_name/new'>Add new record.</a></p>";
-		$output['html'] .= "<table>
-			<thead>
-				<tr>
-					<th></th>";
-		$columns = $table->get_columns();
-		foreach($columns as $column) {
-			$output['html'] .= "<th>{$column['COLUMN_NAME']}</th>";
-		}
-		$output['html'].="
-				</tr>
-			</thead>
-			<tbody>";
-		$records = $table->get_records();
-		foreach($records as $row) {
-			$output['html'] .= "
-				<tr>";
 
-				$deleteLink = "";
-				$updateLink = "";
-				$PK = static::get_primary_key($table_name)[0]['COLUMN_NAME'];
-				$link = make_url_safe($row[$PK]);
-				if ($s_user->check_right('Tables',$table_name,'Delete'))
-					$deleteLink = "<a href='".static::get_module_url()."$table_name/$link/delete' title='Click here to delete this row.'><img src='{$local}images/icon-delete.png' alt='Delete Row' /></a>";
-				if ($s_user->check_right('Tables',$table_name,'Edit'))
-					$updateLink = "<a href='".static::get_module_url()."$table_name/$link' title='Click here to edit this row.'><img src='{$local}images/icon-edit.png' alt='Edit Row' /></a>";
-				$output['html'] .= "
-				<td>
-					$updateLink
-					$deleteLink
-				</td>";
+		extract($table->get_records_sql());
 
+		$paging_table = pagingtable_widget::load_paging($query,$params);
+		if ($paging_table === false)
+			$paging_table = new pagingtable_widget($query,$params);
 
+		$columns = array(
+			array('column' => null, 'display_name' => '', 'display_function' => array(__CLASS__,'build_edit_delete_links'), 'display_function_add_params' => array($table_name))
+		);
 
-			foreach($columns as $column) {
-				if (strcmp($column['CONSTRAINT_NAME'],'PRIMARY')==0) {
-					/* Primary key - make it a link... */
-					$row[$column['COLUMN_NAME']] = "<a href='".static::get_module_url() . "$table_name/".make_url_safe($row[$column['COLUMN_NAME']])."'>{$row[$column['COLUMN_NAME']]}</a>";
-				}
-				if (!empty($column['REFERENCED_TABLE_NAME']) && !empty($column['REFERENCED_COLUMN_NAME'])) {
-					/* Get Foreign Key SHORT Display */
-					$sql = static::sql_decode_display($column['REFERENCED_TABLE_NAME']);
-					$joins = "";
-					if (!empty($sql['joins'])) {
-						foreach($sql['joins'] as $col => $table_join) {
-							$joins .= "LEFT JOIN {$table_join['table']} ON {$column['REFERENCED_TABLE_NAME']}.{$col} = {$table_join['table']}.{$table_join['column']} ";
-						}
-					}
-					$query = "SELECT {$sql['concat']} as display FROM {$column['REFERENCED_TABLE_NAME']} $joins WHERE {$column['REFERENCED_TABLE_NAME']}.{$column['REFERENCED_COLUMN_NAME']} = ?";
-					$params = $sql['params'];
-					array_push($params,array("type" => "s", "value" => $row[$column['COLUMN_NAME']]));
-					$result = $db->run_query($query,$params);
-					if (!empty($result)) $row[$column['COLUMN_NAME']] = $result[0]['display'];
-
-				}
-				$output['html'] .= "<td>{$row[$column['COLUMN_NAME']]}</td>";
+		foreach ($table->columns as $column) {
+			$column_info = array(
+				'column' => $column['COLUMN_NAME'],
+				'display_name' => $column['COLUMN_NAME']
+			);
+			if (!empty($column['REFERENCED_TABLE_NAME']) && !empty($column['REFERENCED_COLUMN_NAME'])) {
+				$column_info['display_function'] = array(__CLASS__,'build_foreign_key_link');
+				$column_info['display_function_add_params'] = array($column);
+			} elseif ($column['DATA_TYPE'] == 'text') {
+				$column_info['display_function'] = array(__CLASS__,'shorten_text_fields');
+				$column_info['nowrap'] = false;
 			}
-			$output['html'] .= "
-				</tr>";
+
+			$columns[] = $column_info;
+
 		}
-		$output['html'] .= "
-			</tbody>
-		</table>
-		<p><a href='".static::get_module_url()."'>Return to Table Listing...</a></p>";
+		$paging_table->set_columns($columns);
+		$paging_table_output = $paging_table->build_table();
+		foreach($paging_table_output as $type => $paging_output) {
+			if ($type == 'html')
+				$output['html'] .= $paging_output;
+			else {
+				if (!isset($output[$type])) $output[$type] = array();
+				$output[$type] = array_merge($output[$type],$paging_output);
+			}
+		}
+
+		$output['html'] .= "<p><a href='".static::get_module_url()."'>Return to Table Listing...</a></p>";
 
 		return $output;
 	}
@@ -582,7 +574,7 @@ TTT;
 			foreach($columns as $column) {
 				$data[$column['COLUMN_NAME']] = '';
 			}
-		}
+		} else $data = $data[0];
 		$output['title'] = ucfirst($action) . " table record...";
 		$output['html'] .= "
 			<h3>".ucfirst($action)." table record...</h3>

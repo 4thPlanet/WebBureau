@@ -1,0 +1,34 @@
+.pagingtable {border: solid 1px black; background: #CCC; color: black;}
+
+.pagingtable table {width: 100%; overflow: auto;}
+.pagingtable table th {cursor:pointer;}
+.pagingtable th.asc:after {content: '\25B2'}
+.pagingtable th.desc:after {content: '\25BC'}
+.pagingtable table td{vertical-align: top; white-space: pre;}
+.pagingtable table td.wrap {white-space: normal}
+
+.pagingtable nav {text-align: center; border-top: solid 1px black; padding: .5em;}
+.pagingtable nav input.page_num {text-align: center; width: 2em;}
+.pagingtable nav p {width: 33%; width: calc(100% / 3); margin: 0px; }
+.pagingtable nav p.records_shown {float: left; text-align: left; }
+.pagingtable nav p.records_total {float: right; text-align: right;}
+.pagingtable nav img.filter {display: block; cursor: pointer; clear: both}
+
+.pagingtable nav.onepage > * {display: none;}
+.pagingtable nav p.records_shown {display: block;}
+.pagingtable nav p.records_total {display: block;}
+
+#pagingtable-filter-select {width: 50%; float: left; border-right: solid 1px black; padding-right: 1em;}
+#pagingtable-filter-existing {width: 50%; float: right; padding-left: 1em;}
+
+#pagingtable-filter-select label {display: block; clear: left;}
+
+#pagingtable-filter-select .required-missing {color: red;}
+#pagingtable-filter-select .required-missing::-webkit-input-placeholder {color: red;}
+#pagingtable-filter-select .required-missing:-moz-placeholder {color: red;}
+#pagingtable-filter-select .required-missing::-moz-placeholder {color: red;}
+#pagingtable-filter-select .required-missing:-ms-input-placeholder {color: red;}
+
+#pagingtable-filter-add {clear: both; display: block; float: right; }
+
+#pagingtable-filter-list img.filter-remove {cursor:pointer;}
