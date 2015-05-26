@@ -197,7 +197,8 @@ class users extends module {
 				$params = array(
 					array("type" => "s", "value" => $data['username'])
 				);
-				$_SESSION[__CLASS__]['user'] = new users($db->run_query($query,$params)[0]);
+				$result = $db->run_query($query,$params);
+				$_SESSION[__CLASS__]['user'] = new users($result[0]);
 				header("Location: {$local}");
 				exit();
 				return;
@@ -595,7 +596,8 @@ class users extends module {
 		$params = array(
 			array("type" => "s", "value" => $data['username'])
 		);
-		$is_unique = $db->run_query($query,$params)[0]['IS_UNIQUE'];
+		$result = $db->run_query($query,$params);
+		$is_unique = $result[0]['IS_UNIQUE'];
 		if (!$is_unique) return 'Username is not available.';
 
 		if (!array_key_exists('email',$data)) $data['email'] = null;
@@ -783,7 +785,8 @@ Regards,
 			array("type" => "s", "value" => '_WIDGETS'),
 			array("type" => "s", "value" => "RIGHT_ID")
 		);
-		$column_exists = $db->run_query($query,$params)[0]['COLUMN_EXISTS'];
+		$result = $db->run_query($query,$params);
+		$column_exists = $result[0]['COLUMN_EXISTS'];
 		if (!$column_exists) {
 			$query = "
 				ALTER TABLE _WIDGETS
