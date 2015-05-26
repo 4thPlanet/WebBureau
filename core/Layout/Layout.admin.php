@@ -6,9 +6,9 @@ class layout_admin extends layout {
 				return static::submit_layout($request['layout']);
 		}
 	}
-	
+
 	public static function post($args,$request) {}
-	
+
 	public static function view() {
 		global $local, $db;
 		$output = array('html' => "",
@@ -60,7 +60,7 @@ class layout_admin extends layout {
 						));
 				}
 			}
-			
+
 			$output['html'] .= "
 				</ul>
 			</div>";
@@ -86,7 +86,7 @@ class layout_admin extends layout {
 		$output['script'][] = "var restrictions = " . json_encode($restrictions) . ";";
 		return $output;
 	}
-	
+
 	protected static function submit_layout($layout) {
 		global $db;
 		/* First, clear out the existing layout... */
@@ -97,7 +97,8 @@ class layout_admin extends layout {
 			$params = array(
 				array("type" => "s", "value" => $area)
 			);
-			$area_id = $db->run_query($query,$params)[0]['ID'];
+			$result = $db->run_query($query,$params)
+			$area_id = $result[0]['ID'];
 			$query = "INSERT INTO _LAYOUT (AREA_ID, WIDGET_ID,DISPLAY_ORDER,BLACKLIST_RESTRICTED) VALUES ";
 			$params = array();
 			$values = array();
@@ -122,7 +123,7 @@ class layout_admin extends layout {
 						)
 					);
 				}
-				
+
 			}
 			if (empty($values)) continue;
 			$query .= implode(", ", $values);

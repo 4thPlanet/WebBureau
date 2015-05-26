@@ -608,7 +608,8 @@ TTT;
 						$joins .= "LEFT JOIN {$table_join['table']} ON {$column['REFERENCED_TABLE_NAME']}.{$col} = {$table_join['table']}.{$table_join['column']} ";
 					}
 				}
-				$pk = static::get_primary_key($table_name)[0]['COLUMN_NAME'];
+				$pk = static::get_primary_key($table_name);
+				$pk = $pk[0]['COLUMN_NAME'];
 				$query = "SELECT {$column['REFERENCED_TABLE_NAME']}.$pk as PK, {$concat['concat']} as DISPLAY
 					FROM {$column['REFERENCED_TABLE_NAME']}
 					$joins";
