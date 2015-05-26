@@ -158,7 +158,7 @@ class tables extends module {
 	public function update_table_info($data) {
 		global $db;
 		$table_info = new Tables('_TABLE_INFO', $this->table_name);
-		if (empty($table_info->get_records()))
+		if ($table_info->get_records())
 			$table_info->set_id(null);
 		$data['TABLE_NAME'] = $this->table_name;
 		$table_info->save($data);
