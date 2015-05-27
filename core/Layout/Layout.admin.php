@@ -97,7 +97,7 @@ class layout_admin extends layout {
 			$params = array(
 				array("type" => "s", "value" => $area)
 			);
-			$result = $db->run_query($query,$params)
+			$result = $db->run_query($query,$params);
 			$area_id = $result[0]['ID'];
 			$query = "INSERT INTO _LAYOUT (AREA_ID, WIDGET_ID,DISPLAY_ORDER,BLACKLIST_RESTRICTED) VALUES ";
 			$params = array();
