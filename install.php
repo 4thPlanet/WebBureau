@@ -24,7 +24,7 @@ if (empty($_POST['username'])) {
 				<label for="db_location">Where is your database located?</label>
 				<input id="db_location" name="db_location" value="localhost" />
 			</p>
-			
+
 			<p>
 				New DB or Existing?<br />
 				<input type="radio" name="new_db" id="newDB" value="1" />
@@ -50,7 +50,7 @@ if (empty($_POST['username'])) {
 							<label for="admin_password">Database Admin Password:</label>
 						</td>
 						<td>
-							<input id="admin_password" name="admin_password" />
+							<input id="admin_password" name="admin_password" type="password" />
 						</td>
 					</tr>
 				</table>
@@ -81,7 +81,7 @@ if (empty($_POST['username'])) {
 						<input id="db_password" name="db_password" type="password" />
 					</td>
 				</tr>
-			
+
 			</table>
 			<p>Please enter the login credentials for your admin account:</p>
 			<table>
@@ -129,7 +129,7 @@ if (empty($_POST['username'])) {
 		$db->query("CREATE DATABASE ".str_replace("'","\'",$_POST['db_name']) . " COLLATE = 'utf8_general_ci'");
 		$db->query("CREATE USER '".str_replace("'","\'",$_POST['db_user'])."'@'localhost' IDENTIFIED BY '".str_replace("'","\'",$_POST['db_password'])."'");
 		$db->query("GRANT ALL privileges ON ".str_replace("'","\'",$_POST['db_name']).".* TO '".str_replace("'","\'",$_POST['db_user'])."'@'localhost'");
-	} 
+	}
 	/* Now create ClientData.php */
 	$clientData = '
 <'.'?php
@@ -153,21 +153,21 @@ if (empty($_POST['username'])) {
 	require_once('includes/Utils.php');
 	require_once('core/Module.php');
 	require_once('core/Widget.php');
-	
+
 	global $db,$local_dir;
-	$db = new clientData(); 
+	$db = new clientData();
 	$local_dir = __DIR__ . "/";
 	?>
 <html>
 	<head>
 		<title>Installing system...</title>
 	</head>
-	<body><?php
+	<body><?
 	/* First install the core module module... */
 	echo "Installing the base module...<br />";
 	module::install();
-	
-	
+
+
 	/* Do a search of all .module files... */
 	$module_files = recursive_glob('*.module');
 	/* For each .module file, convert to object from JSON */
@@ -217,17 +217,17 @@ if (empty($_POST['username'])) {
 		WHERE (A.AREA_NAME = 'header' AND W.NAME = 'Centered Menu') OR
 		(A.AREA_NAME = 'left-sidebar' AND W.NAME IN ('Login','Welcome'))";
 	$db->run_query($query);
-	
+
 	/* Just so there's something there, menu is the Tables module... */
 	$query = "
-		INSERT INTO _MENU (MODULE_ID, TEXT, DISPLAY_ORDER) 
+		INSERT INTO _MENU (MODULE_ID, TEXT, DISPLAY_ORDER)
 		SELECT ID, NAME, 1
 		FROM _MODULES
 		WHERE NAME = 'Tables'";
 	$db->run_query($query);
 	/* Add one more - the Modules Module (and its submenus)...*/
 	modules::install_menu();
-	
+
 	/* Set up _TABLE_INFO table... */
 	$query = "
 		INSERT INTO _TABLE_INFO (TABLE_NAME, SHORT_DISPLAY) VALUES
@@ -239,7 +239,7 @@ if (empty($_POST['username'])) {
 		('_WIDGETS','{NAME}'),
 		('_USERS','{USERNAME}')";
 	$db->run_query($query);
-	
+
 	if (
 	Users::create_user(
 		array(
