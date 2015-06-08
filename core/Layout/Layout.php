@@ -166,7 +166,7 @@ class layout extends module {
 	<head>
 		<title><?echo $page_title?></title>
 		<link rel="stylesheet" type="text/css" href="<?echo $local;?>style/style.css" />
-		<? if (!empty($initial)) {
+		<?php if (!empty($initial)) {
 			if (!empty($initial['script'])) {
 				foreach($initial['script'] as $script) {
 					if (filter_var(url_protocol_check($script),FILTER_VALIDATE_URL))
@@ -218,9 +218,9 @@ class layout extends module {
 					<div class="widget <?echo $content['widgets'][$idx]['class'];?>" widget-id="<?echo $content['widgets'][$idx]['ID'];?>">
 						<?php echo $widget ?>
 					</div>
-					<? } ?>
+					<?php } ?>
 				</div>
-				<? } ?>
+				<?php } ?>
 			</div>
 		</div>
 	</body>
