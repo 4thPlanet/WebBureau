@@ -70,9 +70,10 @@ class paging extends module {
 			$condition = "1=1";
 		}
 		if (!empty($this->order_by)) {
-			$order = "ORDER BY ";
+			$order = "ORDER BY 1";
 			foreach($this->order_by as $order_column) {
-				$order .= "{$order_column['column']} {$order_column['direction']}";
+				if (!empty($order_column['column']))
+					$order .= ",{$order_column['column']} {$order_column['direction']}";
 			}
 		} else {
 			$order = "";
