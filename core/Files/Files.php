@@ -13,13 +13,22 @@ class files extends module {
 			);";
 		$db->run_query($query);
 		$db->trigger('file_upload_date','BEFORE INSERT','_FILES','SET NEW.UPLOAD_DATE = IFNULL(NEW.UPLOAD_DATE,NOW())');
-		
+
 		return true;
 	}
-	
+
 	public static function post() {}
 	public static function ajax($args,$request) {}
-	
+
+	public static function get_files() {
+		global $db;
+		$query = "
+			SELECT ID,FILENAME,TITLE
+			FROM _FILES
+		";
+		return group_numeric_by_key($db->run_query($query),'ID');
+	}
+
 	public static function view() {
 		global $db,$local,$s_user;
 		if (!$s_user->check_right('Files','Files','View File')) {
@@ -30,14 +39,14 @@ class files extends module {
 		$output = array(
 			'html' => '<h3>Files</h3>'
 		);
-		
+
 		$query = "SELECT TITLE,DESCRIPTION,FILENAME FROM _FILES";
 		$files = $db->run_query($query);
-		
+
 		if (empty($files)) {
 			$output['html'] .= "<p>No Files have been uploaded.</p>";
 		} else {
-		
+
 			$output['html'] .= "
 			<table>
 				<thead>
@@ -72,6 +81,6 @@ class files extends module {
 			)
 		);
 	}
-	
+
 }
 ?>
