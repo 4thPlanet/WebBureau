@@ -156,17 +156,33 @@ class layout extends module {
 		return $area_content;
 	}
 
+	/**
+	 * Checks if a given asset is included in the supplied output, and if not appends it.
+	 *
+	 * @param array &$output - An output array (typically holds html, css, script, etc.)
+	 * @param string $asset_type - the type of asset
+	 * @param string $asset - The asset to force
+	 *
+	 * @return null
+	 * */
+	public static function force_asset(&$output,$asset_type,$asset) {
+		if (empty($output[$asset_type]) || !in_array($asset,$output[$asset_type])) {
+			$output[$asset_type][] = $asset;
+		}
+	}
+
 	/* $initial will contain any initial scripts, stylesheets, and meta tags that should be loaded on every page. */
 	public static function setup_page($initial = array()) {
 		global $local;
 		$page_title = '';
 		$area_content = static::load_page_data();
+		static::force_asset($initial,'css',get_public_location(__DIR__ . '/style/style.css'));
 ?><!DOCTYPE html>
 <html>
 	<head>
 		<title><?echo $page_title?></title>
-		<link rel="stylesheet" type="text/css" href="<?echo $local;?>style/style.css" />
-		<?php if (!empty($initial)) {
+		<?php
+			/* Go through scripts (if any) */
 			if (!empty($initial['script'])) {
 				foreach($initial['script'] as $script) {
 					if (filter_var(url_protocol_check($script),FILTER_VALIDATE_URL))
@@ -174,21 +190,18 @@ class layout extends module {
 					else echo "<script type='text/Javascript'>$script</script>";
 				}
 			} else $initial['script'] = array();
-			if (!empty($initial['css'])) {
-				foreach($initial['css'] as $css) {
-					if (filter_var(url_protocol_check($css), FILTER_VALIDATE_URL))
-						echo "<link rel='stylesheet' type='text/css' href='$css' />";
-					else echo "<style type='text/css'>$css</style>";
-				}
-				$initial['css'][] = "{$local}style/style.css";
-			} else $initial['css'] = array("{$local}style/style.css");
+			/* Go through CSS */
+			foreach($initial['css'] as $css) {
+				if (filter_var(url_protocol_check($css), FILTER_VALIDATE_URL))
+					echo "<link rel='stylesheet' type='text/css' href='$css' />";
+				else echo "<style type='text/css'>$css</style>";
+			}
+			/* Go through meta (if any) */
 			if (!empty($initial['meta'])) foreach($initial['meta'] as $key=>$value)
 				echo "<meta name='$key' content='$value' />";
-		} else {
-			$initial = array('css' => array("{$local}style/style.css"),'script' => array());
-		}
 		$loaded_sources = $initial;
 		foreach($area_content as $area=>$content) {
+			/* Load any CSS from widgets */
 			if (!empty($content['css'])) foreach($content['css'] as $css) {
 				if (in_array($css,$loaded_sources['css'])!==false) continue;
 				if (filter_var(url_protocol_check($css), FILTER_VALIDATE_URL))
@@ -196,6 +209,7 @@ class layout extends module {
 				else echo "<style type='text/css'>$css</style>";
 				$loaded_sources['css'][] = $css;
 			}
+			/* Load any Scripts from Widgets */
 			if (!empty($content['script'])) foreach($content['script'] as $script) {
 				if (in_array($script,$loaded_sources['script'])) continue;
 				if (filter_var(url_protocol_check($script),FILTER_VALIDATE_URL))
@@ -203,6 +217,7 @@ class layout extends module {
 				else echo "<script type='text/Javascript'>$script</script>";
 				$loaded_sources['script'][] = $script;
 			}
+			/* Load any metas from widgets */
 			if (!empty($content['meta'])) foreach($content['meta'] as $key=>$value) {
 				/* No need to search for duplicate metas as they overwrite themselves already... */
 				echo "<meta name='$key' content='$value' />";
