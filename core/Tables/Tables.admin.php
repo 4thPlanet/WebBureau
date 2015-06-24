@@ -137,6 +137,7 @@ class tables_admin extends tables {
 		foreach($columns as $idx=>$column) {
 			if ($column['IS_AUTO_INCREMENT']) continue;
 			$data[$column['COLUMN_NAME']] = empty($request["col{$idx}_null"]) ? $request["col$idx"] : null;
+
 		}
 		$result = $table->save($data);
 		if ($result===false) {
@@ -569,7 +570,7 @@ TTT;
 		$data = $table->get_records();
 
 		$action = 'edit';
-		if (empty($id)) {
+		if (empty($id) || empty($data) ) {
 			$action = 'add';
 			foreach($columns as $column) {
 				$data[$column['COLUMN_NAME']] = '';
@@ -633,13 +634,31 @@ TTT;
 						"{$local}script/jquery-ui.min.js",
 						"{$local}script/jquery-ui-timepicker-addon.js",
 						'$(function() {
-							$(".datetimepicker").datetimepicker();
+							$(".datetimepicker").datetimepicker({
+								dateFormat: "yy-mm-dd",
+								timeFormat: "HH:mm:ss"
+							});
 						});'
 						);
 					array_push(
 						$output['css'] ,
 						"{$local}style/jquery-ui.css",
 						"{$local}style/timepicker.css"
+					);
+				} elseif ($column['DATA_TYPE']=='date') {
+					$class[] = 'datepicker';
+					array_push(
+						$output['script'],
+						"{$local}script/jquery-ui.min.js",
+						'$(function() {
+							$(".datepicker").datepicker({
+								dateFormat: "yy-mm-dd",
+							});
+						});'
+					);
+					array_push(
+						$output['css'] ,
+						"{$local}style/jquery-ui.css"
 					);
 				}
 				$class = implode(" ",$class);
