@@ -1,0 +1,8 @@
+{
+	"Module" : "WideLayout",
+	"Description" : "Custom Layout which allows for wide (full-width) elements",
+	"Core" : 0,
+	"Filename" : "WideLayout.php",
+	"Class" : "layout_wide",
+	"Requires" : ["Layout"]
+}

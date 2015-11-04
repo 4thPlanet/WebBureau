@@ -4,6 +4,75 @@ $(function() {
 			group: 'layout',
 			connectWith: '.layout .widgets'
 		})
+		.on('click','.setup',function() {
+			var
+				$widget = $(this).parent(),
+				args = $widget.data('args') || [],
+				data = {
+					ajax: 'get_widget_setup',
+					widget: $widget.attr('name').replace(/^widget-/,"")
+				};
+			$.post('',data,function(questions){
+				var idx,
+					$prompt = $('<div />'),
+					$label,
+					$input,
+					option;
+				for (idx in questions) {
+					$label = $('<label />')
+						.text(questions[idx].PROMPT);
+
+					switch (questions[idx].TYPE) {
+						case 'select':
+							$input = $('<select />')
+								.appendTo($label);
+
+							$('<option />')
+								.val('')
+								.text('Select...')
+								.appendTo($input);
+
+							for(option in questions[idx].OPTIONS) {
+								$('<option />')
+									.val(questions[idx].OPTIONS[option].ID)
+									.text(questions[idx].OPTIONS[option].VALUE)
+									.prop('selected',typeof args[idx]!=='undefined' && args[idx]==questions[idx].OPTIONS[option].ID)
+									.appendTo($input);
+							}
+							break;
+						case 'text':
+						default:
+							$input = $('<input />')
+								.val(typeof args[idx] !== 'undefined' ? args[idx] : '')
+								.appendTo($label);
+					}
+
+					$label.appendTo($prompt).wrap('<div />');
+
+					$prompt.dialog({
+						title: 'Setup Widget',
+						modal: true,
+						width: '40%',
+						buttons: {
+							Set: function() {
+								var args = [];
+								$(this).find(':input').each(function(idx,el) {
+									args[idx] = $(this).val();
+								});
+								$widget.data('args',args);
+								$(this).dialog('close');
+							},
+							Cancel: function() {
+								$(this).dialog('close');
+							}
+						},
+						close: function() {
+							$prompt.remove();
+						}
+					});
+				}
+			},'json');
+		})
 		.on('click','.remove',function() {
 			$(this).parent().remove();
 		})
@@ -12,7 +81,7 @@ $(function() {
 			$widget = $(this).parent();
 			$d = $('<div />')
 				.data({src: $widget});
-			
+
 			$('<p />')
 				.text('Restriction Type: ')
 				.append(
@@ -45,14 +114,14 @@ $(function() {
 									.prop('disabled',true);
 							}
 						}).val($widget.data('restrict-type'))
-				
+
 				)
 				.appendTo($d);
-			
+
 			$('<h4 />')
 				.html('<span id="restriction-text">Restrict</span>ed Modules:')
 				.appendTo($d);
-			
+
 			for(idx in modules) {
 				$('<div />')
 					.append(
@@ -75,12 +144,12 @@ $(function() {
 					)
 					.appendTo($d);
 			}
-			
+
 			$d.dialog({
 				title: 'Set ' + $(this).parent().text() + ' Widget Restrictions',
 				modal: true,
 				width: '40%',
-				buttons: 
+				buttons:
 				[
 					{
 						id: 'set-restrictions',
@@ -137,6 +206,12 @@ $(function() {
 			.attr({title: 'Click here to black/whitelist this widget.'});
 		$widget.find('.remove')
 			.attr({title: 'Click here to remove this widget.'});
+		if ($widget.data('requiresSetup')) {
+			$('<button />')
+				.text('Setup...')
+				.addClass('setup')
+				.appendTo($widget);
+		}
 		$menu = $('<ul id="layout_menu"/>');
 		for (idx in areas) {
 			$('<li />')
@@ -150,6 +225,7 @@ $(function() {
 		$menu.on('click','a',function() {
 			$area = $(this).text();
 			$('.layout.'+$area + ' .widgets').append($widget);
+			$widget.find('.setup').click();
 			$menu.remove();
 			});
 	});
@@ -173,10 +249,11 @@ $(function() {
 				data[area][data[area].length] = {
 					id: widget,
 					'restrict-type': $(this).data('restrict-type'),
-					restrictions: $(this).data('restrict-mods')
+					restrictions: $(this).data('restrict-mods'),
+					args: $(this).data('args') || []
 				};
 			});
-			if (data[area].length == 0) 
+			if (data[area].length == 0)
 				delete data[area];
 		});
 		$.post('', {ajax: 'submit-layout', layout: data }, function(resp) {

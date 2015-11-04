@@ -1,16 +1,106 @@
 <?php
 class layout_admin extends layout {
 	public static function ajax($args,$request) {
+		global $s_user;
+		if (!$s_user->check_right('Modules','Administer','Administer Layout')) {return false;}
 		switch($request['ajax']) {
+			case 'get_widget_setup':
+				return module::setup_widget($request['widget']);
 			case 'submit-layout':
 				return static::submit_layout($request['layout']);
+			case 'static_block_edit':
+				return static::save_static_html($request['block']);
+			case 'static_block_delete':
+				return !is_string(static::delete_static_html($request['id']));
 		}
 	}
 
 	public static function post($args,$request) {}
 
-	public static function view() {
+	public static function edit_static_html($id=""){
+		global $local,$db;
+		$output = array(
+			"html" => "",
+			"script" => array(
+				"{$local}script/jquery.min.js",
+				"{$local}script/jquery-ui.min.js",
+				"{$local}script/ckeditor/ckeditor.js",
+				"{$local}script/ckeditor/adapters/jquery.js",
+				get_public_location(__DIR__ . '/js/static_blocks.js')
+			),
+			"css" => array(
+				"{$local}style/jquery-ui.css",
+				get_public_location(__DIR__ . '/style/static_blocks.css')
+			)
+		);
+		$output['html'] .= <<<HTML
+<h2>Static HTML</h2>
+<p>Here you can create and edit static HTML blocks to place in your layout.</p>
+<form id="static-blocks-form" method="post" action="">
+	<table>
+		<thead>
+			<tr>
+				<th>Identifier</th>
+				<th>HTML</th>
+				<th>Actions</th>
+			</tr>
+		</thead>
+HTML;
+
+		$query = "
+			SELECT ID,IDENTIFIER,HTML
+			FROM _LAYOUT_STATIC_HTML
+		";
+		$static_blocks = make_html_safe($db->run_query($query),ENT_QUOTES);
+		foreach($static_blocks as $block)
+		{
+			$output['html'] .= <<<INPUT
+		<tr data-id="{$block['ID']}">
+			<td><input class="identifier" placeholder="Identifier" name="block[{$block['ID']}][id]" value="{$block['IDENTIFIER']}" /></td>
+			<td><textarea name="block[{$block['ID']}][html]">{$block['HTML']}</textarea></td>
+			<td>
+				<button class="save" type="button">Save</button>
+				<a href="#" class="delete" title="Click here to delete block."><img src="{$local}images/icon-delete.png" alt="Delete" /></a>
+			</td>
+		</tr>
+INPUT;
+		}
+
+		$output['html'] .= <<<INPUT
+		<tr>
+			<td><input class="identifier" placeholder="Identifier" name="block[new][id]"/></td>
+			<td><textarea name="block[new][html]"></textarea></td>
+			<td><button class="save" type="button">Save</button></td>
+		</tr>
+INPUT;
+
+		$output['html'] .= "</table></form>";
+		return $output;
+	}
+
+	public static function get_module_url() {
+		return Modules::get_module_url() . 'Layout/';
+	}
+
+	public static function view($sub="") {
 		global $local, $db;
+
+		$args = func_get_args();
+		if ($args) {
+			$sub = array_shift($args);
+			$method = false;
+			if ($sub == 'static-text') {
+				$method = 'edit_static_html';
+			}
+			if ($method)
+				return call_user_func_array(array(__CLASS__,$method),$args);
+			else {
+				header("Location: " . static::get_module_url());
+				exit;
+				return;
+			}
+		}
+
 		$output = array('html' => "",
 			'script' => array(
 				"{$local}script/jquery.min.js",
@@ -22,6 +112,7 @@ class layout_admin extends layout {
 				get_public_location(__DIR__ . '/style/layout.css')
 			)
 		);
+		$output['html'] .= "<p><a href='".static::get_module_url()."static-text'>Click here to edit static text blocks.</a></p>";
 		/* Loop through each area... */
 		$query = "SELECT * FROM _AREAS ORDER BY HTML_ORDER";
 		$areas = $db->run_query($query);
@@ -32,7 +123,7 @@ class layout_admin extends layout {
 			$output['html'] .= "<div class='layout {$area['AREA_NAME']}'>
 				<h4>{$area['AREA_NAME']}</h4>
 				<ul class='widgets'>";
-			$query = "SELECT W.ID, W.NAME, L.BLACKLIST_RESTRICTED, L.ID as LAYOUT_ID
+			$query = "SELECT W.ID, W.NAME, L.BLACKLIST_RESTRICTED, L.ID as LAYOUT_ID, L.ARGUMENTS, W.CLASS_NAME
 			FROM _LAYOUT L
 			JOIN _WIDGETS W ON L.WIDGET_ID = W.ID
 			WHERE L.AREA_ID = ?
@@ -42,8 +133,13 @@ class layout_admin extends layout {
 			);
 			$area_widgets = $db->run_query($query,$params);
 			foreach($area_widgets as $aw) {
+				$has_setup = (int) method_exists($aw['CLASS_NAME'],'setup');
+				$args = $has_setup ? make_html_safe(json_encode(unserialize($aw['ARGUMENTS'])),ENT_QUOTES) : "";
+				$setup = $has_setup ? "<button class='setup'>Setup...</button>" : "";
+
+
 				$output['html'] .= "
-					<li name='widget-{$aw['ID']}'>{$aw['NAME']}<span title='Click here to remove this widget.' class='remove'></span><span title='Click here to black/whitelist this widget.' class='list'></span></li>";
+					<li data-args='$args' name='widget-{$aw['ID']}'>{$aw['NAME']}$setup<span title='Click here to remove this widget.' class='remove'></span><span title='Click here to black/whitelist this widget.' class='list'></span></li>";
 				if (!is_null($aw['BLACKLIST_RESTRICTED'])) {
 					$query = "
 						SELECT MODULE_ID
@@ -68,14 +164,15 @@ class layout_admin extends layout {
 		$output['html'] .= "
 			<p class='clear'><button id='save_layout'>Save Layout</button></p>";
 		/* List available widgets... */
-		$query = "SELECT ID, NAME FROM _WIDGETS";
+		$query = "SELECT ID, NAME, CLASS_NAME FROM _WIDGETS";
 		$widgets = $db->run_query($query);
 		$output['html'] .= "
 			<h3>Available Widgets</h3>
 			<ul id='widget_list'>";
 		foreach($widgets as $widget) {
+			$has_setup = (int) method_exists($widget['CLASS_NAME'],'setup');
 			$output['html'] .= "
-				<li name='widget-{$widget['ID']}'>{$widget['NAME']}<button class='addTo'>Add To...</button></li>";
+				<li data-requires-setup='$has_setup' name='widget-{$widget['ID']}'>{$widget['NAME']}<button class='addTo'>Add To...</button></li>";
 		}
 		$output['html'] .= "
 			</ul>";
@@ -99,19 +196,20 @@ class layout_admin extends layout {
 			);
 			$result = $db->run_query($query,$params);
 			$area_id = $result[0]['ID'];
-			$query = "INSERT INTO _LAYOUT (AREA_ID, WIDGET_ID,DISPLAY_ORDER,BLACKLIST_RESTRICTED) VALUES ";
+			$query = "INSERT INTO _LAYOUT (AREA_ID, WIDGET_ID,DISPLAY_ORDER,BLACKLIST_RESTRICTED,ARGUMENTS) VALUES ";
 			$params = array();
 			$values = array();
 			$restrictions = array();
 			$order = 0;
 			foreach($widgets as $widget) {
-				$values[] = "(?,?,?,?)";
+				$values[] = "(?,?,?,?,?)";
 				array_push(
 					$params,
 					array("type" => "i", "value" => $area_id),
 					array("type" => "i", "value" => $widget['id']),
 					array("type" => "i", "value" => ++$order),
-					array("type" => "i", "value" => array_key_exists('restrict-type',$widget) ? $widget['restrict-type'] : null)
+					array("type" => "i", "value" => array_key_exists('restrict-type',$widget) ? $widget['restrict-type'] : null),
+					array("type" => "s", "value" => array_key_exists('args',$widget) ? serialize($widget['args']) : null)
 				);
 				if (array_key_exists('restrict-type',$widget)) {
 					array_push(

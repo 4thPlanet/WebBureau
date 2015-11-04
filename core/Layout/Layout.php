@@ -10,7 +10,9 @@ class layout extends module {
 		global $db;
 
 		require_once("Layout.MainContent.php");
+		require_once("Layout.StaticBlock.php");
 		layout_main_content::install();
+		layout_static_block::install();
 
 		$query = "CREATE TABLE IF NOT EXISTS _AREAS (
 			ID int AUTO_INCREMENT,
@@ -40,6 +42,7 @@ class layout extends module {
 			WIDGET_ID int,
 			DISPLAY_ORDER int,
 			BLACKLIST_RESTRICTED bit(1),
+			ARGUMENTS varchar(256),
 			PRIMARY KEY (ID),
 			FOREIGN KEY (AREA_ID) REFERENCES _AREAS(ID),
 			FOREIGN KEY (WIDGET_ID) REFERENCES _WIDGETS(ID)
@@ -53,6 +56,15 @@ class layout extends module {
 			PRIMARY KEY (ID),
 			FOREIGN KEY (LAYOUT_ID) REFERENCES _LAYOUT(ID) ON DELETE CASCADE ON UPDATE CASCADE,
 			FOREIGN KEY (MODULE_ID) REFERENCES _MODULES(ID) ON DELETE CASCADE ON UPDATE CASCADE
+		)";
+		$db->run_query($query);
+
+		$query = "CREATE TABLE IF NOT EXISTS _LAYOUT_STATIC_HTML (
+			ID int auto_increment,
+			IDENTIFIER varchar(32),
+			HTML text,
+			PRIMARY KEY (ID),
+			UNIQUE KEY (identifier)
 		)";
 		$db->run_query($query);
 
@@ -81,6 +93,45 @@ class layout extends module {
 		exit();
 	}
 
+	public static function save_static_html($blocks) {
+		global $db;
+		$insertQuery = "INSERT INTO _LAYOUT_STATIC_HTML (IDENTIFIER, HTML) VALUES (?,?)";
+		$updateQuery = "UPDATE _LAYOUT_STATIC_HTML SET IDENTIFIER = ?, HTML = ? WHERE ID = ?";
+		$newIds = array();
+		foreach($blocks as $id=>$block) {
+			if (is_numeric($id)) {
+				$query = $updateQuery;
+				$params = array(
+					array("type" => "s", "value" => $block['id']),
+					array("type" => "s", "value" => $block['html']),
+					array("type" => "i", "value" => $id)
+				);
+			} else {
+				$query = $insertQuery;
+				$params = array(
+					array("type" => "s", "value" => $block['id']),
+					array("type" => "s", "value" => $block['html'])
+				);
+			}
+			$db->run_query($query,$params);
+			if (!is_numeric($id)) {
+				$newIds[] = $db->get_inserted_id();
+			}
+		}
+		if (empty($newIds)) return true;
+		elseif (count($newIds)==1) return $newIds[0];
+		else return $newIds;
+	}
+
+	public static function delete_static_html($id) {
+		global $db;
+		$query = "DELETE FROM _LAYOUT_STATIC_HTML WHERE ID = ?";
+		$params = array(
+			array("type" => "i", "value" => $id)
+		);
+		$db->run_query($query,$params);
+	}
+
 	protected static function load_page_data() {
 		global $db,$s_user;
 		$query = "
@@ -99,7 +150,7 @@ class layout extends module {
 			);
 			/* get each widget to display in this area... */
 			$query = "
-				SELECT L.ID AS LAYOUT_ID, L.BLACKLIST_RESTRICTED, W.ID, W.NAME as WIDGET_NAME, M.NAME as MODULE, RT.NAME AS TYPE, R.NAME as 'RIGHT'
+				SELECT L.ID AS LAYOUT_ID, L.BLACKLIST_RESTRICTED, W.ID, W.NAME as WIDGET_NAME, M.NAME as MODULE, RT.NAME AS TYPE, R.NAME as 'RIGHT', L.ARGUMENTS
 				FROM _LAYOUT  L
 				JOIN _WIDGETS W ON L.WIDGET_ID = W.ID
 				LEFT JOIN _RIGHTS R ON W.RIGHT_ID = R.ID
@@ -134,7 +185,8 @@ class layout extends module {
 				}
 
 				$display_area = true;
-				$response = parent::widget($widget['ID']);
+				$widget_arguments = $widget['ARGUMENTS'] ? unserialize($widget['ARGUMENTS']) : array();
+				$response = parent::widget($widget['ID'],false,$widget_arguments);
 
 				if (empty($response)) continue;
 				if (!empty($response['title'])) $page_title = $response['title'];

@@ -1,0 +1,55 @@
+* {box-sizing: border-box; }
+img {box-sizing: content-box; }
+body {margin: 0px; float: left; width: 100%; }
+.area {float: left; width: 100%; font-family: Arial, Helvetica, sans-serif;}
+.wrapper { width: 100%; max-width: 1260px; margin: auto;}
+
+header {clear: both; width: 100%; float: left;  }
+
+main {width: 100%; max-width: 1260px; margin: auto; }
+main .wrapper {float: left; width: 100%; }
+footer {clear: both; width: 100%; float: left; }
+footer.force-down {position: absolute; bottom: 0px;}
+.left-sidebar {
+	float: left;
+	width: 200px;
+	margin-left: calc((100% - 1260px) / 2);
+}
+
+.right-sidebar {float: right; width: 200px; margin-right: calc((100% - 1260px) / 2);}
+
+.main-content {padding: 0px 10px;  width: 100%; float: left;}
+.left-sidebar ~ .main-content, .right-sidebar ~ .main-content {width: 1060px; width: calc(100% - 200px); max-width: 1060px;}
+.right-sidebar ~ .main-content {float: right;}
+.left-sidebar ~ .right-sidebar ~ .main-content {width: 860px; width: calc(100% - 400px); max-width: 860px;}
+
+.layout.left-sidebar {
+	margin-left: 0px;
+}
+.layout.right-sidebar {
+	margin-right: 0px;
+}
+
+
+div.widget { overflow: auto; width: 100%; float: left;}
+
+.clear {clear: both; }
+.half {width: 50%; float: left;}
+
+.error {color: red; }
+.success {color: green; }
+.warning {color: yellow; }
+
+.button {
+	display: inline-block;
+	padding: .25em 1em;
+	color: #000;
+	text-decoration: none;
+	border: outset 1px #EEE;
+	border-radius: .25em;
+	background: #DDD;
+}
+.button:hover {border: solid 1px #AAA;}
+.button:active {border: inset 1px #EEE;}
+table {width: 100%;}
+textarea {width: 95%; margin-right: 5%;}

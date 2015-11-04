@@ -7,12 +7,12 @@ class module {
 	public static function help() {
 		return "<p>This help text is useless right now.  It should be properly set by writing a 'help' function within ".get_called_class()."'s class.</p>";
 	}
-	
+
 	/* To handle what happens behind closed doors... */
 	public static function admin_post() {
 		return false;
 	}
-	
+
 	/* Admin function for...Admin-ing*/
 	public static function admin() {
 		return array(
@@ -27,7 +27,7 @@ class module {
 	public static function ajax() {
 		return false;
 	}
-	
+
 	/* First step to install a module... */
 	public static function install_module($info) {
 		global $db;
@@ -65,7 +65,7 @@ class module {
 		}
 		if (!empty($info['Helpers'])) {
 			$query = "
-				INSERT INTO _MODULES_HELPERS (MODULE_ID,HELPER_ID,FILENAME,CLASS_NAME) 
+				INSERT INTO _MODULES_HELPERS (MODULE_ID,HELPER_ID,FILENAME,CLASS_NAME)
 				SELECT ?,H.ID,?,?
 				FROM _HELPERS H
 				WHERE TYPE = ?";
@@ -80,12 +80,12 @@ class module {
 				$db->run_query($query,$params);
 			}
 		}
-		
+
 		require_once($info['Directory'].$info['Filename']);
-		
+
 		/* Run any commands specific for this module's installation... */
 		call_user_func_array(array($info['Class'],'install'),array());
-		
+
 		/* Install any rights and auto-assign them as needed... */
 		$required_rights = call_user_func_array(array($info['Class'],'required_rights'),array());
 		if (!empty($required_rights)) {
@@ -110,10 +110,10 @@ class module {
 			/* Install again (Yes, its very slow doing it this way, unfortunately Users and base module have some conflicts and this is the best solution I can come up with for now)*/
 			call_user_func_array(array($info['Class'],'install'),array());
 		}
-		
+
 		return true;
 	}
-	
+
 	/* What needs to be done in order to install the module*/
 	public static function install() {
 		global $db;
@@ -172,14 +172,14 @@ class module {
 		);";
 		$db->run_query($query);
 		return true;
-		
+
 	}
 	/* What needs to be done in order to uninstall the module */
 	public static function uninstall() {return false;}
-	
+
 	/* Returns list of Rights required by Module */
 	public static function required_rights() { return array();}
-	
+
 	/* Returns a multi-dimensional array of menu options for this module (including sub-menus) */
 	public static function menu() {
 		/* Default is to return a single option - the empty array, representing the module's view method */
@@ -191,7 +191,7 @@ class module {
 			)
 		);
 	}
-	
+
 	/* Installs the menu automatically... */
 	public static function install_menu($menu = null,$order=0,$parent=null) {
 		global $db;
@@ -211,7 +211,7 @@ class module {
 			);
 			$db->run_query($query,$params);
 			$menu_id = $db->get_inserted_id();
-			
+
 			/* If args, save those too */
 			if (!empty($item['args'])) {
 				$query = "INSERT INTO _MENU_ARGS (MENU_ID,ARG_NUMBER,ARG) VALUES (?,?,?)";
@@ -226,9 +226,9 @@ class module {
 				}
 			}
 			if (!empty($item['submenu']))
-				foreach($item['submenu'] as $t => $submenu) 
+				foreach($item['submenu'] as $t => $submenu)
 					call_user_func_array(array(get_called_class(),'install_menu'),array(array($t => $submenu),0,$menu_id));
-				
+
 		}
 	}
 
@@ -237,7 +237,7 @@ class module {
 		/* Default is unable to decode anything - so always return the HREF to the module's view method */
 		return static::get_module_url();
 	}
-	
+
 	public static function get_module_url() {
 		global $local,$db;
 		$query = "SELECT CONCAT(IFNULL(SLUG,NAME),
@@ -250,7 +250,7 @@ class module {
 		$module = $db->run_query($query,$params);
 		return "{$local}{$module[0]['NAME']}";
 	}
-	
+
 	/* returns helper classes used by a given module ID... If type specified, will only return helper information for that type */
 	public static function get_module_helpers($module,$type = '') {
 		global $db;
@@ -264,9 +264,9 @@ class module {
 				array("type" => "s", "value" => $type)
 			);
 		}
-		
+
 		$query = "
-			SELECT H.TYPE,IFNULL(MH.CLASS_NAME,M.CLASS_NAME) as CLASS_NAME, 
+			SELECT H.TYPE,IFNULL(MH.CLASS_NAME,M.CLASS_NAME) as CLASS_NAME,
 				CASE WHEN MH.MODULE_ID IS NULL THEN H.FALLBACK_METHOD ELSE H.METHOD_NAME END AS METHOD_NAME
 			FROM _MODULES M
 			JOIN _HELPERS H ON $helper_join
@@ -296,7 +296,7 @@ class module {
 			UNION ALL
 			SELECT *, 0 as pref
 			FROM _MODULES
-			WHERE SLUG IS NULL AND NAME = ? 
+			WHERE SLUG IS NULL AND NAME = ?
 			ORDER BY pref DESC LIMIT 1";
 		$params = array(
 			array("type" => "s", "value" => $slug),
@@ -308,7 +308,7 @@ class module {
 			/* Get Helper Classes */
 			unset($module['pref']);
 			$module['helpers'] = static::get_module_helpers($module['ID']);
-			
+
 			return $module;
 		}
 		if (!empty($slug)) array_unshift($args,$slug);
@@ -323,7 +323,7 @@ class module {
 		$module['helpers'] = static::get_module_helpers($module['ID']);
 		return $module;
 	}
-	
+
 	/* Returns the class used for a given module... */
 	public static function get_module_class($module) {
 		global $db;
@@ -335,27 +335,42 @@ class module {
 		if (empty($result)) return false;
 		return $result[0]['CLASS_NAME'];
 	}
-	
+
 	public static function widget($id,$ajax=false,$params=array()) {
 		/* Determines what exactly is widget $id, then attempts to run it. If $ajax is true, run ajax method instead */
 		global $db;
-		$query = "
-			SELECT W.CLASS_NAME
-			FROM _WIDGETS W
-			WHERE W.ID = ?";
-		$param = array(
-			array("type" => "i", "value" => $id)
-		);
-		$widget = $db->run_query($query,$param);
-		$widget = $widget[0];
-		
+		$widget = static::get_widget($id);
+
 		if (is_array($ajax)) {
 			$params = $ajax;
 			$ajax = false;
 		}
 		if (!$ajax)
-			return call_user_func_array(array($widget['CLASS_NAME'],'view'),array($params));
+			return call_user_func_array(array($widget['CLASS_NAME'],'view'),$params);
 		else return call_user_func_array(array($widget['CLASS_NAME'],'ajax'),array($params));
+	}
+
+	public static function setup_widget($id)
+	{
+		/* Calls the setup() method for the given widget $id */
+		global $db;
+		$widget = static::get_widget($id);
+		return call_user_func_array(array($widget['CLASS_NAME'],'setup'),array());
+	}
+
+	public static function get_widget($id)
+	{
+		global $db;
+		$query = "
+			SELECT *
+			FROM _WIDGETS W
+			WHERE W.ID = ?
+		";
+		$param = array(
+			array("type" => "i", "value" => $id)
+		);
+		$widget = $db->run_query($query,$param);
+		return ($widget) ? $widget[0] : false;
 	}
 }
 ?>

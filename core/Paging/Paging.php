@@ -237,6 +237,7 @@ class paging extends module {
 		return true;
 	}
 	public static function menu() {return false;}	//no need for it to be used in a menu
+	public static function view() {return false;}	//there is no actual view method
 }
 
 ?>
