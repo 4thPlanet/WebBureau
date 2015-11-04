@@ -47,9 +47,9 @@ class menu_admin extends menu {
 				foreach($module['menu'] as $text=>$menu_item) {
 						$output['html'] .= static::menu_object_to_li($text,$menu_item);
 				}
-
 				$output['html'] .= "</ul>";
 		}
+		$output['html'] .= "<h4>Empty Link<span class='toggle'>+</span></h4><ul class='module' module=''><li right='' args=''><span class='menu-text'>Link to Nowhere</span> <span class='to-menu' title='Click here to move this item onto the menu.'>--&gt;</span></li></ul>";
 
 		$output['html'] .= "
 		</div>
@@ -150,8 +150,10 @@ class menu_admin extends menu {
 				$id = $id[0];
 			}
 			$count++;
+			if (empty($item['module'])) $item['module'] = null;
 			if (empty($item['right'])) $item['right'] = null;
 			if (empty($item['args'])) $item['args'] = array();
+
 			$query = "UPDATE _MENU SET
 				PARENT_ID = ?,
 				MODULE_ID = ?,

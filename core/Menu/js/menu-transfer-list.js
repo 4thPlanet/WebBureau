@@ -33,7 +33,7 @@ $(function() {
 		var time = new Date();
 		if (time - t < 100) return;
 		t = time;
-		
+
 		$('#menu .selected').removeClass('selected');
 		$(this).addClass('selected');
 	});
@@ -41,11 +41,11 @@ $(function() {
 		var $src = $(this);
 		var $d = $('<div />')
 			.data('src',$src);
-		
+
 		$('<p />')
 			.text('Please enter the text for this menu item:')
 			.appendTo($d);
-		
+
 		$('<input />')
 			.attr({
 				id: 'menu-text'
@@ -55,7 +55,7 @@ $(function() {
 			})
 			.val($src.contents().eq(0).text())
 			.appendTo($d);
-		
+
 		$d.dialog({
 			modal: true,
 			title: 'Menu Item Text',
@@ -127,9 +127,9 @@ function menu_to_object($menu) {
 		var $this = $(this);
 		var text = $this.find('> .menu-text').text();
 		obj[idx] = {
-			args: $.parseJSON($this.attr('args')),
-			module: $this.attr('module'),
-			right: $this.attr('right'),
+			args: ($this.attr('args') && $.parseJSON($this.attr('args'))) || [],
+			module: $this.attr('module') || null,
+			right: $this.attr('right') || null,
 			text: text
 			};
 		if ($this.find('ul li').length)
