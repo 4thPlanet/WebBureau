@@ -376,6 +376,8 @@ class tables extends module {
 				PREVIEW_DISPLAY_AFTER varchar(500),
 				FULL_DISPLAY text,
 				LINK_BACK_TO_TABLE bit,
+				LINK_TO_ALL_TABLES bit,
+				DEFAULT_ORDER varchar(64),
 				ROW_DISPLAY_MAX int,
 				DETAILED_MENU_OPTIONS bit,
 				PRIMARY KEY (TABLE_NAME)
@@ -692,6 +694,8 @@ class tables extends module {
 			$table_info = $table_info[0];
 			$table_info['SLUG'] = is_null($table_info['SLUG']) ? $table : $table_info['SLUG'];
 			if ($table_info['SLUG'] > "") $table_info['SLUG'] .= "/";
+			if ($table_info['DEFAULT_ORDER'])
+				$query .= " ORDER BY {$table_info['DEFAULT_ORDER']}";
 		}
 		else {
 			$table_info['SLUG'] = "$table/";
@@ -765,7 +769,8 @@ class tables extends module {
 				array_push($output['css'],get_public_location(__DIR__."/style/paging-navigation.css"));
 			}
 		}
-		$output['html'] .= "<p><a href='".static::get_module_url()."'>Return to Table Listing...</a></p>";
+		if ($table_info['LINK_TO_ALL_TABLES'])
+			$output['html'] .= "<p><a href='".static::get_module_url()."'>Return to Table Listing...</a></p>";
 		return $output;
 	}
 

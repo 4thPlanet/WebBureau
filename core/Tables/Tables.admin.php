@@ -395,19 +395,22 @@ class tables_admin extends tables {
 			$table_info = make_html_safe($result[0],ENT_QUOTES);
 			if (!is_null($table_info['DETAILED_MENU_OPTIONS'])) $table_info['DETAILED_MENU_OPTIONS'] = $table_info['DETAILED_MENU_OPTIONS'] ? 'checked="checked"' : '';
 			if (!is_null($table_info['LINK_BACK_TO_TABLE'])) $table_info['LINK_BACK_TO_TABLE'] = $table_info['LINK_BACK_TO_TABLE'] ? 'checked="checked"' : '';
+			if (!is_null($table_info['LINK_TO_ALL_TABLES'])) $table_info['LINK_TO_ALL_TABLES'] = $table_info['LINK_TO_ALL_TABLES'] ? 'checked="checked"' : '';
 		}
 		else
-			$table_info = array(
-				'SLUG' => null,
-				'SHORT_DISPLAY' => null,
-				'PREVIEW_DISPLAY_BEFORE' => null,
-				'PREVIEW_DISPLAY' => null,
-				'PREVIEW_DISPLAY_AFTER' => null,
-				'FULL_DISPLAY' => null,
-				'ROW_DISPLAY_MAX' => null,
-				'LINK_BACK_TO_TABLE' => null,
-				'DETAILED_MENU_OPTIONS' => null,
-			);
+			$table_info = array_fill_keys(array(
+				'SLUG',
+				'SHORT_DISPLAY',
+				'PREVIEW_DISPLAY_BEFORE',
+				'PREVIEW_DISPLAY',
+				'PREVIEW_DISPLAY_AFTER',
+				'FULL_DISPLAY',
+				'ROW_DISPLAY_MAX',
+				'LINK_BACK_TO_TABLE',
+				'DETAILED_MENU_OPTIONS',
+				'DEFAULT_ORDER',
+				'LINK_TO_ALL_TABLES'
+			),null);
 
 		$null_cbs = array();
 		foreach($table_info as $key=>$value)
@@ -435,6 +438,14 @@ class tables_admin extends tables {
 				'description' => '',
 				'keywords' => ''
 			);
+		}
+		$columns = static::get_table_columns($table_name);
+		$sorting_options = "<option value=''>Please Select...</option>";
+		foreach($columns as $column) {
+			$asc_selected = $table_info['DEFAULT_ORDER'] == "{$column['COLUMN_NAME']} ASC" ? "selected='selected'" : "";
+			$dsc_selected = $table_info['DEFAULT_ORDER'] == "{$column['COLUMN_NAME']} DESC" ? "selected='selected'" : "";
+			$sorting_options .= "<option value='{$column['COLUMN_NAME']} ASC' $asc_selected>{$column['COLUMN_NAME']} ASC</option>";
+			$sorting_options .= "<option value='{$column['COLUMN_NAME']} DESC' $dsc_selected>{$column['COLUMN_NAME']} DESC</option>";
 		}
 
 		// Really not a fan of hardcoding here
@@ -478,6 +489,16 @@ class tables_admin extends tables {
 						<td>Link Back to Table?</td>
 						<td><input type="checkbox" class="null" id="LINK_BACK_TO_TABLE_null" name="LINK_BACK_TO_TABLE_null" value="1" {$null_cbs['LINK_BACK_TO_TABLE']} /></td>
 						<td><input type="checkbox" name="LINK_BACK_TO_TABLE" value="1" {$table_info['LINK_BACK_TO_TABLE']}/></td>
+					</tr>
+					<tr>
+						<td>Link Back to All Tables?</td>
+						<td><input type="checkbox" class="null" id="LINK_TO_ALL_TABLES_null" name="LINK_TO_ALL_TABLES_null" value="1" {$null_cbs['LINK_TO_ALL_TABLES']} /></td>
+						<td><input type="checkbox" name="LINK_TO_ALL_TABLES" value="1" {$table_info['LINK_TO_ALL_TABLES']}/></td>
+					</tr>
+					<tr>
+						<td>Default Order</td>
+						<td><input type="checkbox" class="null" id="DEFAULT_ORDER_null" name="DEFAULT_ORDER_null" value="1" {$null_cbs['DEFAULT_ORDER']} /></td>
+						<td><select name="DEFAULT_ORDER">$sorting_options</select></td>
 					</tr>
 					<tr>
 						<td>Row Display - Max</td>
