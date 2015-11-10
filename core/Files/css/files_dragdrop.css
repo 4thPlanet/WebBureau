@@ -1,0 +1,24 @@
+#dragdrop_files {list-style-type: none;}
+#dragdrop_files li {cursor: pointer;}
+
+#dragdrop_cover {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	z-index: 999999;
+	cursor: pointer;
+	background: rgba(0,0,0,0)
+}
+.dragdrop_fileClone {
+	position: absolute;
+	background: white;
+	color: black;
+	border: solid 1px black;
+	border-radius: 1em;
+	list-style-type: none;
+	padding: 0em .5em;
+	cursor: pointer;
+	z-index: 1000000;
+}

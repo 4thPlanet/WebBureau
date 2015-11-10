@@ -14,6 +14,9 @@ class files extends module {
 		$db->run_query($query);
 		$db->trigger('file_upload_date','BEFORE INSERT','_FILES','SET NEW.UPLOAD_DATE = IFNULL(NEW.UPLOAD_DATE,NOW())');
 
+		require_once(__DIR__ . '/Files_DragDrop.widget.php');
+		files_dragdrop_widget::install();
+
 		return true;
 	}
 
