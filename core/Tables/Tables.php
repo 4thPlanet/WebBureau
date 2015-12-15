@@ -282,7 +282,7 @@ class tables extends module {
 			);
 			$submenu = &$menu['Tables']['submenu'][$table['TABLE_NAME']]['submenu'];
 
-			$query = "SELECT IFNULL(DETAILED_MENU_OPTIONS,0) as DETAILED_MENU
+			$query = "SELECT IFNULL(DETAILED_MENU_OPTIONS,0) as DETAILED_MENU, FILTER_COLUMN
 			FROM _TABLE_INFO
 			WHERE TABLE_NAME = ?";
 			$params = array(
@@ -290,6 +290,47 @@ class tables extends module {
 			);
 			$table_info = $db->run_query($query,$params);
 			if (empty($table_info) || !$table_info[0]['DETAILED_MENU']) continue;
+			$table_info = $table_info[0];
+
+			if ($table_info['FILTER_COLUMN']) {
+				// Build query for each filter...
+				$column = static::get_table_columns($table['TABLE_NAME'],$table_info['FILTER_COLUMN']);
+				$column = $column[0];
+				if ($column['REFERENCED_TABLE_NAME']) {
+					$fk_sql = static::sql_decode_display($column['REFERENCED_TABLE_NAME']);
+					$query = "
+						SELECT DISTINCT {$table_info['FILTER_COLUMN']} as ID, {$fk_sql['concat']} as DISPLAY
+						FROM {$table['TABLE_NAME']}
+						JOIN {$column['REFERENCED_TABLE_NAME']} ON {$table['TABLE_NAME']}.{$table_info['FILTER_COLUMN']} = {$column['REFERENCED_TABLE_NAME']}.{$column['REFERENCED_COLUMN_NAME']}";
+					if (!empty($fk_sql['joins'])) {
+						foreach($fk_sql['joins'] as $col => $table_join) {
+							$query .= " LEFT JOIN {$table_join['table']} ON {$table}.{$col} = {$table_join['table']}.{$table_join['column']} ";
+						}
+					}
+					$params = $fk_sql['params'];
+					$filter_results = $db->run_query($query,$params);
+
+				} else {
+					$query = "
+						SELECT DISTINCT {$table_info['FILTER_COLUMN']} as ID, {$table_info['FILTER_COLUMN']} as DISPLAY
+						FROM {$table['TABLE_NAME']}
+					";
+					$filter_results = $db->run_query($query);
+				}
+
+				if ($filter_results) {
+					foreach($filter_results as $row) {
+						$text = $row['DISPLAY'];
+						$submenu[$row['DISPLAY']] = array(
+							'args' => array($table['TABLE_NAME'],'FILTER',$row['ID']),
+							'submenu' => array(),
+							'right' => $right
+						);
+					}
+				}
+
+			}
+			// Build query for each individual row...
 			$PK = implode(",",group_numeric_by_key(static::get_primary_key($table['TABLE_NAME']),'COLUMN_NAME'));
 			$decode = static::sql_decode_display($table['TABLE_NAME'],SHORT_DISPLAY);
 			$joins = "";
@@ -322,7 +363,7 @@ class tables extends module {
 		if (empty($args)) return $url;
 		/* Get the Table */
 		$query = "
-			SELECT T.TABLE_NAME, IFNULL(I.SLUG,T.TABLE_NAME) as 'table'
+			SELECT T.TABLE_NAME, IFNULL(I.SLUG,T.TABLE_NAME) as 'table', I.FILTER_COLUMN
 			FROM INFORMATION_SCHEMA.TABLES T
 			LEFT JOIN _TABLE_INFO I ON T.TABLE_NAME = I.TABLE_NAME
 			WHERE T.TABLE_SCHEMA = ? AND T.TABLE_NAME = ?";
@@ -336,32 +377,68 @@ class tables extends module {
 
 		$url.= "$table";
 		if (empty($args)) return $url;
-		/* Get the ID */
-		$PK = static::get_primary_key($TABLE_NAME);
-		$display = static::sql_decode_display($TABLE_NAME,SHORT_DISPLAY);
-		$joins = "";
-		if (!empty($display['joins'])) {
-			foreach($display['joins'] as $col => $table_join) {
-				$joins .= "LEFT JOIN {$table_join['table']} ON {$TABLE_NAME}.{$col} = {$table_join['table']}.{$table_join['column']} ";
+
+		if (count($args) > 1) {
+			$arg = array_shift($args);
+			switch($arg) {
+				case 'FILTER':
+					$val = array_shift($args);
+					$column = static::get_table_columns($TABLE_NAME,$FILTER_COLUMN);
+					$column = $column[0];
+					if ($column['REFERENCED_TABLE_NAME']) {
+						// get SHORT_DISPLAY for FK Reference...
+						$fk_sql = static::sql_decode_display($column['REFERENCED_TABLE_NAME'],SHORT_DISPLAY);
+						$query = "
+							SELECT {$fk_sql['concat']} as DISPLAY
+							FROM {$column['REFERENCED_TABLE_NAME']}
+						";
+						if (!empty($fk_sql['joins'])) {
+							foreach($fk_sql['joins'] as $col => $table_join) {
+								$query .= " LEFT JOIN {$table_join['table']} ON {$column['REFERENCED_TABLE_NAME']}.{$col} = {$table_join['table']}.{$table_join['column']} ";
+							}
+						}
+						$query .= " WHERE {$column['REFERENCED_COLUMN_NAME']} = ?";
+						$params = array_merge($fk_sql['params'],array(array("type" => "s", "value" => $val)));
+						$display = $db->run_query($query,$params);
+
+						if (empty($display)) return $url;
+						if (!empty($table)) $url .= "/";
+						return $url . make_url_safe($display[0]['DISPLAY'],ENT_QUOTES) ;
+					} else {
+						// just append $val to URL...
+						if (!empty($table)) $url .= "/";
+						return $url . make_url_safe($val,ENT_QUOTES) ;
+					}
 			}
 		}
-		$query = "
-			SELECT {$display['concat']} AS DISPLAY
-			FROM $TABLE_NAME
-			$joins
-			WHERE ";
-		$params = $display['params'];
-		$clause = array();
-		foreach($PK as $key) {
-			$clause[] = "{$TABLE_NAME}.{$key['COLUMN_NAME']} = ?";
-			array_push($params,array("type" => "s", "value" => array_shift($args)));
-		}
-		$query .= implode(" AND ", $clause);
-		$display = $db->run_query($query,$params);
-		if (empty($display)) return $url;
+		else {
+			/* Get the ID */
+			$PK = static::get_primary_key($TABLE_NAME);
+			$display = static::sql_decode_display($TABLE_NAME,SHORT_DISPLAY);
+			$joins = "";
+			if (!empty($display['joins'])) {
+				foreach($display['joins'] as $col => $table_join) {
+					$joins .= "LEFT JOIN {$table_join['table']} ON {$TABLE_NAME}.{$col} = {$table_join['table']}.{$table_join['column']} ";
+				}
+			}
+			$query = "
+				SELECT {$display['concat']} AS DISPLAY
+				FROM $TABLE_NAME
+				$joins
+				WHERE ";
+			$params = $display['params'];
+			$clause = array();
+			foreach($PK as $key) {
+				$clause[] = "{$TABLE_NAME}.{$key['COLUMN_NAME']} = ?";
+				array_push($params,array("type" => "s", "value" => array_shift($args)));
+			}
+			$query .= implode(" AND ", $clause);
+			$display = $db->run_query($query,$params);
+			if (empty($display)) return $url;
 
-		if (!empty($table)) $url .= "/";
-		return $url . make_url_safe($display[0]['DISPLAY'],ENT_QUOTES) ;
+			if (!empty($table)) $url .= "/";
+			return $url . make_url_safe($display[0]['DISPLAY'],ENT_QUOTES) ;
+		}
 	}
 
 	public static function install() {
@@ -378,10 +455,11 @@ class tables extends module {
 				LINK_BACK_TO_TABLE bit,
 				LINK_TO_ALL_TABLES bit,
 				DEFAULT_ORDER varchar(64),
+				FILTER_COLUMN varchar(64),
 				ROW_DISPLAY_MAX int,
 				DETAILED_MENU_OPTIONS bit,
 				PRIMARY KEY (TABLE_NAME)
-			)";
+			) ENGINE=INNODB;";
 		$db->run_query($query);
 		$query = "
 			CREATE TABLE IF NOT EXISTS _TABLE_METAS (
@@ -389,7 +467,7 @@ class tables extends module {
 				META_NAME varchar(100),
 				META_CONTENT text,
 				PRIMARY KEY (TABLE_NAME,META_NAME)
-			)";
+			) ENGINE=INNODB;";
 		$db->run_query($query);
 		return true;
 	}
@@ -456,8 +534,8 @@ class tables extends module {
 		return $db->run_query($query,$params);
 	}
 
-	public static function get_table_columns($table_name) {
-		/* Returns the columns of a given table, and which tables they reference (if applicable) */
+	public static function get_table_columns($table_name, $column_name=null) {
+		/* Returns the columns of a given table, and which tables they reference (if applicable).  If $column_name is not null, only grab that column */
 		global $db;
 		$query = "SELECT C.COLUMN_NAME, C.DATA_TYPE, C.CHARACTER_MAXIMUM_LENGTH,
 			CASE WHEN C.EXTRA RLIKE 'auto_increment' THEN 1 ELSE 0 END as IS_AUTO_INCREMENT,
@@ -468,14 +546,18 @@ class tables extends module {
 				C.TABLE_SCHEMA = K.TABLE_SCHEMA AND
 				C.TABLE_NAME = K.TABLE_NAME AND
 				C.COLUMN_NAME = K.COLUMN_NAME
-			WHERE C.TABLE_NAME = ? AND C.TABLE_SCHEMA = ?
+			WHERE C.TABLE_NAME = ? AND C.TABLE_SCHEMA = ? AND (? IS NULL OR C.COLUMN_NAME = ?)
 			ORDER BY C.ORDINAL_POSITION";
 		$params = array(
 			array("type" => "s", "value" => $table_name),
-			array("type" => "s", "value" => $db->get_db_name())
+			array("type" => "s", "value" => $db->get_db_name()),
+			array("type" => "s", "value" => $column_name),
+			array("type" => "s", "value" => $column_name)
 		);
 		return $db->run_query($query,$params);
 	}
+
+
 
 	public static function sql_decode_display($table_name,$display=SHORT_DISPLAY) {
 		/* This function is used to get the SQL to display a given table. */
@@ -487,7 +569,8 @@ class tables extends module {
 		);
 		$display = $db->run_query($query,$params);
 		if (!empty($display)) $display = $display[0]['SHORT_DISPLAY'];
-		else {
+
+		if (!$display) {
 			$keys = static::get_primary_key($table_name);
 			$display = "";
 			foreach($keys as $key) {
@@ -669,7 +752,7 @@ class tables extends module {
 		return implode(' ',array_slice($val,0,50));
 	}
 
-	protected static function view_table($table) {
+	protected static function view_table($table,$filter=null) {
 		global $local, $db;
 		$output = array('html' => '', 'script' => array(), 'css' => array());
 		$user = users::get_session_user();
@@ -686,27 +769,60 @@ class tables extends module {
 			array("type" => "s", "value" => $table)
 		);
 		$table_info = $db->run_query($query,$params);
+		$table_columns = static::get_table_columns($table);
 
-		$query = "SELECT *
+		$query = "SELECT $table.*
 			FROM $table";
+		$params = array();
 
 		if (!empty($table_info)) {
 			$table_info = $table_info[0];
+			if (!is_null($filter) && $table_info['FILTER_COLUMN']) {
+				foreach($table_columns as $column) {
+					if ($column['COLUMN_NAME'] == $table_info['FILTER_COLUMN']) {
+						if ($column['REFERENCED_TABLE_NAME']) {
+							$fk_sql = static::sql_decode_display($column['REFERENCED_TABLE_NAME']);
+							$query .= " JOIN {$column['REFERENCED_TABLE_NAME']} ON $table.{$table_info['FILTER_COLUMN']} = {$column['REFERENCED_TABLE_NAME']}.{$column['REFERENCED_COLUMN_NAME']} AND {$fk_sql['concat']} RLIKE ?";
+							if (!empty($fk_sql['joins'])) {
+								foreach($fk_sql['joins'] as $col => $table_join) {
+									$query .= " LEFT JOIN {$table_join['table']} ON {$table}.{$col} = {$table_join['table']}.{$table_join['column']} ";
+								}
+							}
+							array_push($fk_sql['params'],array("type" => "s", "value" => decode_url_safe($filter)));
+							$params = $fk_sql['params'];
+							// will need to get JOIN clause...
+						} else {
+							// just add to WHERE clause...
+							$query .= " WHERE $table.{$table_info['FILTER_COLUMN']} = ?";
+							array_push($params, array("type" => "s", "value" => $filter));
+						}
+					}
+				}
+			} elseif (!is_null($filter) && !$table_info['FILTER_COLUMN']) {
+				header("Location: " . static::get_module_url() . (isset($table_info['SLUG']) ? $table_info['SLUG'] : $table) );
+				exit();
+				return;
+			}
+
 			$table_info['SLUG'] = is_null($table_info['SLUG']) ? $table : $table_info['SLUG'];
 			if ($table_info['SLUG'] > "") $table_info['SLUG'] .= "/";
 			if ($table_info['DEFAULT_ORDER'])
 				$query .= " ORDER BY {$table_info['DEFAULT_ORDER']}";
 		}
-		else {
+		elseif (!is_null($filter)) {
+			header("Location: " . static::get_module_url() . (isset($table_info['SLUG']) ? $table_info['SLUG'] : $table) );
+			exit();
+			return;
+		} else {
 			$table_info['SLUG'] = "$table/";
 		}
+
 		if (empty($table_info['PREVIEW_DISPLAY'])) {
-			$paging_table = pagingtable_widget::load_paging($query,array());
+			$paging_table = pagingtable_widget::load_paging($query,$params);
 			if ($paging_table === false)
-				$paging_table = new pagingtable_widget($query,array());
+				$paging_table = new pagingtable_widget($query,$params);
 			$paging_table->set_per_page(empty($table_info['ROW_DISPLAY_MAX']) ? 10 : $table_info['ROW_DISPLAY_MAX']);
 			$columns = array();
-			$table_columns = static::get_table_columns($table);
 			foreach ($table_columns as $column) {
 				$column_info = array(
 					'column' => $column['COLUMN_NAME'],
@@ -722,9 +838,7 @@ class tables extends module {
 					$column_info['display_function'] = array(__CLASS__,'get_table_record_link');
 					$column_info['display_function_add_params'] = array($table,$table_info['SLUG'],static::sql_decode_display($table));
 				}
-
 				$columns[] = $column_info;
-
 			}
 
 			$paging_table->set_columns($columns);
@@ -737,10 +851,8 @@ class tables extends module {
 					$output[$type] = array_merge($output[$type],$paging_output);
 				}
 			}
-
-
 		} else {
-			$paging = new paging($query);
+			$paging = new paging($query,$params);
 			$paging->set_per_page(empty($table_info['ROW_DISPLAY_MAX']) ? 10 : $table_info['ROW_DISPLAY_MAX']);
 			if (isset($_REQUEST['page'])) {
 				$paging->goto_page($_REQUEST['page']);
@@ -792,6 +904,7 @@ class tables extends module {
 		$data = $db->run_query($query,$params);
 		if (!empty($data)) $data = $data[0];
 		elseif (empty($data) && empty($id)) return static::view_table($table);
+		elseif (empty($data) && !empty($id)) return static::view_table($table,$id);
 
 		/* Pick up rights checks here!!!!! */
 		if (!empty($action) && !$user->check_right('Tables',$table,ucfirst($action)))  {

@@ -52,7 +52,7 @@ class tables_admin extends tables {
 				$query .= ", FOREIGN KEY ($fkey) REFERENCES {$reference['TABLE_NAME']}({$reference['COLUMN_NAME']})";
 			}
 		}
-		$query .= ")";
+		$query .= ")  ENGINE=INNODB;";
 		$result = $db->run_query($query);
 
 		if (!static::is_table($table_name)) {
@@ -409,6 +409,7 @@ class tables_admin extends tables {
 				'LINK_BACK_TO_TABLE',
 				'DETAILED_MENU_OPTIONS',
 				'DEFAULT_ORDER',
+				'FILTER_COLUMN',
 				'LINK_TO_ALL_TABLES'
 			),null);
 
@@ -441,11 +442,14 @@ class tables_admin extends tables {
 		}
 		$columns = static::get_table_columns($table_name);
 		$sorting_options = "<option value=''>Please Select...</option>";
+		$filter_options = "<option value=''>Please Select...</option>";
 		foreach($columns as $column) {
 			$asc_selected = $table_info['DEFAULT_ORDER'] == "{$column['COLUMN_NAME']} ASC" ? "selected='selected'" : "";
 			$dsc_selected = $table_info['DEFAULT_ORDER'] == "{$column['COLUMN_NAME']} DESC" ? "selected='selected'" : "";
+			$filter_selected = $table_info['FILTER_COLUMN'] == $column['COLUMN_NAME'] ? "selected='selected'" : "";
 			$sorting_options .= "<option value='{$column['COLUMN_NAME']} ASC' $asc_selected>{$column['COLUMN_NAME']} ASC</option>";
 			$sorting_options .= "<option value='{$column['COLUMN_NAME']} DESC' $dsc_selected>{$column['COLUMN_NAME']} DESC</option>";
+			$filter_options .= "<option value='{$column['COLUMN_NAME']}' $filter_selected>{$column['COLUMN_NAME']}</option>";
 		}
 
 		// Really not a fan of hardcoding here
@@ -499,6 +503,11 @@ class tables_admin extends tables {
 						<td>Default Order</td>
 						<td><input type="checkbox" class="null" id="DEFAULT_ORDER_null" name="DEFAULT_ORDER_null" value="1" {$null_cbs['DEFAULT_ORDER']} /></td>
 						<td><select name="DEFAULT_ORDER">$sorting_options</select></td>
+					</tr>
+					<tr>
+						<td>Filter Column</td>
+						<td><input type="checkbox" class="null" id="FILTER_COLUMN_null" name="FILTER_COLUMN_null" value="1" {$null_cbs['FILTER_COLUMN']} /></td>
+						<td><select name="FILTER_COLUMN">$filter_options</select></td>
 					</tr>
 					<tr>
 						<td>Row Display - Max</td>
