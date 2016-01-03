@@ -55,6 +55,7 @@ class users_admin extends users {
 				ORDER BY U.ID";
 			$users = make_html_safe($db->run_query($query),ENT_QUOTES);
 			$output['html'] .= "
+			<p><a href='".users::get_module_url()."register'>Register new user</a></p>
 			<table>
 				<thead>
 					<tr>
@@ -213,6 +214,7 @@ class users_admin extends users {
 		if (empty($id)) {
 			$groups = make_html_safe(static::get_groups());
 			$output['html'] .= "
+			<p><a href='".modules::get_module_url()."Users/Groups/new'>Create New Group</a></p>
 			<table>
 				<thead>
 					<tr>
@@ -321,17 +323,37 @@ class users_admin extends users {
 
 	protected static function group_admin_post($id,$request) {
 		global $db,$s_user;
-		$query = "
-			UPDATE _GROUPS SET
-				NAME = ?,
-				DESCRIPTION = ?
-			WHERE ID = ?";
-		$params = array(
-			array("type" => "s", "value" => $request['name']),
-			array("type" => "s", "value" => $request['description']),
-			array("type" => "i", "value" => $id),
-		);
+		$is_new_group = $id === "new";
+		if ($is_new_group)
+		{
+			$query = "
+				INSERT INTO _GROUPS (NAME,DESCRIPTION)
+				VALUES (?,?)
+			";
+			$params = array(
+				array("type" => "s", "value" => $request['name']),
+				array("type" => "s", "value" => $request['description'])
+			);
+		}
+		else
+		{
+			$query = "
+				UPDATE _GROUPS SET
+					NAME = ?,
+					DESCRIPTION = ?
+				WHERE ID = ?";
+			$params = array(
+				array("type" => "s", "value" => $request['name']),
+				array("type" => "s", "value" => $request['description']),
+				array("type" => "i", "value" => $id),
+			);
+		}
+
 		$db->run_query($query,$params);
+		if ($is_new_group)
+		{
+			$id = $db->get_inserted_id();
+		}
 		if ($s_user->check_right('Users','Rights','Assign Rights')) {
 			if (!empty($request['rights'])) {
 				/* Remove all rights not in $request['rights'] */
@@ -369,7 +391,18 @@ class users_admin extends users {
 				$db->run_query($query,$params);
 			}
 		}
-		layout::set_message("Group {$request['name']} has been updated.",'info');
+
+		if ($is_new_group)
+		{
+			layout::set_message("Group {$request['name']} has been created.",'info');
+			header("Location: " . modules::get_module_url() . "Users/Groups/$id");
+			exit;
+		}
+		else
+		{
+			layout::set_message("Group {$request['name']} has been updated.",'info');
+		}
+
 		return;
 	}
 }
