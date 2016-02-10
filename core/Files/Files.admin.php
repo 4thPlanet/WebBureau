@@ -46,7 +46,7 @@ class files_admin extends files {
 			if (!file_exists($dir)) {
 				// Create the uploads directory...
 				if ( !is_writable(__DIR__) || !@mkdir($dir,0755)) {
-					layout::set_message("Unable to create uploads directory.  Please confirm server has write access to " . get_public_location(__DIR__), "error");
+					layout::set_message("Unable to create uploads directory.  Please confirm server has write access to " . utilities::get_public_location(__DIR__), "error");
 					return;
 				}
 			}
@@ -149,7 +149,7 @@ class files_admin extends files {
 			'script' => array(
 				"{$local}script/jquery.min.js",
 				"{$local}script/jquery-ui.min.js",
-				get_public_location(__DIR__ . '/js/file-admin.js')
+				utilities::get_public_location(__DIR__ . '/js/file-admin.js')
 			)
 		);
 
@@ -169,8 +169,8 @@ class files_admin extends files {
 		if ($s_user->check_right('Files','Files','Edit File'))
 			$output['html'] .= " (<a href='#' id='file-edit'>Edit Description</a>)";
 		$output['html'] .= "</p>";
-		$output['html'] .= "<iframe src='".get_public_location($file_info['FILENAME'])."'></iframe>";
-		$output['html'] .= "<p><a href='".get_public_location($file_info['FILENAME'])."' target='_blank'>Open in new tab/window</a></p>";
+		$output['html'] .= "<iframe src='".utilities::get_public_location($file_info['FILENAME'])."'></iframe>";
+		$output['html'] .= "<p><a href='".utilities::get_public_location($file_info['FILENAME'])."' target='_blank'>Open in new tab/window</a></p>";
 
 		if ($s_user->check_right('Files','Files','Edit File'))
 			$output['html'] .= "<p><a href='#' id='file-delete'>Delete File</a></p>";

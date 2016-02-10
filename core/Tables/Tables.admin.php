@@ -195,13 +195,13 @@ class tables_admin extends tables {
 
 		$output['script'] = array(
 			"{$local}script/jquery.min.js",
-			get_public_location(__DIR__ . "/js/create-table.js")
+			utilities::get_public_location(__DIR__ . "/js/create-table.js")
 		);
 
 		$existing_tables = static::get_users_viewable_tables();
 		$output['script'][] = "var tables = ".json_encode($existing_tables).";";
 
-		$output['css'] = array(get_public_location(__DIR__ . '/style/new-table.css'));
+		$output['css'] = array(utilities::get_public_location(__DIR__ . '/style/new-table.css'));
 
 		$types = array(
 			'int',
@@ -373,13 +373,13 @@ class tables_admin extends tables {
 			"{$local}script/jquery-ui.min.js",
 			"{$local}script/ckeditor/ckeditor.js",
 			"{$local}script/ckeditor/adapters/jquery.js",
-			get_public_location(__DIR__ . '/js/table-metas.js')
+			utilities::get_public_location(__DIR__ . '/js/table-metas.js')
 		);
 
 		array_push(
 			$output['css'],
 			"{$local}style/jquery-ui.css",
-			get_public_location(__DIR__ . "/style/table-meta.css")
+			utilities::get_public_location(__DIR__ . "/style/table-meta.css")
 		);
 
 		$query = "
@@ -392,7 +392,7 @@ class tables_admin extends tables {
 		);
 		$result = $db->run_query($query,$params);
 		if (!empty($result)) {
-			$table_info = make_html_safe($result[0],ENT_QUOTES);
+			$table_info = utilities::make_html_safe($result[0],ENT_QUOTES);
 			if (!is_null($table_info['DETAILED_MENU_OPTIONS'])) $table_info['DETAILED_MENU_OPTIONS'] = $table_info['DETAILED_MENU_OPTIONS'] ? 'checked="checked"' : '';
 			if (!is_null($table_info['LINK_BACK_TO_TABLE'])) $table_info['LINK_BACK_TO_TABLE'] = $table_info['LINK_BACK_TO_TABLE'] ? 'checked="checked"' : '';
 			if (!is_null($table_info['LINK_TO_ALL_TABLES'])) $table_info['LINK_TO_ALL_TABLES'] = $table_info['LINK_TO_ALL_TABLES'] ? 'checked="checked"' : '';
@@ -425,7 +425,7 @@ class tables_admin extends tables {
 		$params = array(
 			array("type" => "s", "value" => $table_name)
 		);
-		$metas = group_numeric_by_keys($db->run_query($query,$params),array('META_NAME','META_CONTENT'),true);
+		$metas = utilities::group_numeric_by_keys($db->run_query($query,$params),array('META_NAME','META_CONTENT'),true);
 		if (!empty($metas)) {
 			foreach($metas as &$meta)
 				$meta = $meta[0];
@@ -693,7 +693,7 @@ TTT;
 				}
 				$class = implode(" ",$class);
 				if (!empty($data[$column['COLUMN_NAME']]))
-					$data[$column['COLUMN_NAME']] = make_html_safe($data[$column['COLUMN_NAME']],ENT_QUOTES);
+					$data[$column['COLUMN_NAME']] = utilities::make_html_safe($data[$column['COLUMN_NAME']],ENT_QUOTES);
 				$input = "<input class='$class' id='col$idx' name='col$idx' value='{$data[$column['COLUMN_NAME']]}' />";
 			}
 			if (is_null($data[$column['COLUMN_NAME']])) $is_null = "checked='checked'";

@@ -245,7 +245,7 @@ class tables extends module {
 		$params = array(
 			array("type" => "s", "value" => $db->get_db_name())
 		);
-		$tables = group_numeric_by_key($db->run_query($query,$params),'TABLE_NAME');
+		$tables = utilities::group_numeric_by_key($db->run_query($query,$params),'TABLE_NAME');
 		foreach($tables as $idx=>$table) {
 			if (!$s_user->check_right('Tables',$table,'View')) unset($tables[$idx]);
 		}
@@ -331,7 +331,7 @@ class tables extends module {
 
 			}
 			// Build query for each individual row...
-			$PK = implode(",",group_numeric_by_key(static::get_primary_key($table['TABLE_NAME']),'COLUMN_NAME'));
+			$PK = implode(",",utilities::group_numeric_by_key(static::get_primary_key($table['TABLE_NAME']),'COLUMN_NAME'));
 			$decode = static::sql_decode_display($table['TABLE_NAME'],SHORT_DISPLAY);
 			$joins = "";
 			if (!empty($decode['joins'])) {
@@ -403,11 +403,11 @@ class tables extends module {
 
 						if (empty($display)) return $url;
 						if (!empty($table)) $url .= "/";
-						return $url . make_url_safe($display[0]['DISPLAY'],ENT_QUOTES) ;
+						return $url . utilities::make_url_safe($display[0]['DISPLAY'],ENT_QUOTES) ;
 					} else {
 						// just append $val to URL...
 						if (!empty($table)) $url .= "/";
-						return $url . make_url_safe($val,ENT_QUOTES) ;
+						return $url . utilities::make_url_safe($val,ENT_QUOTES) ;
 					}
 			}
 		}
@@ -437,7 +437,7 @@ class tables extends module {
 			if (empty($display)) return $url;
 
 			if (!empty($table)) $url .= "/";
-			return $url . make_url_safe($display[0]['DISPLAY'],ENT_QUOTES) ;
+			return $url . utilities::make_url_safe($display[0]['DISPLAY'],ENT_QUOTES) ;
 		}
 	}
 
@@ -488,7 +488,7 @@ class tables extends module {
 		$params = array(
 			array("type" => "s", "value" => $db->get_db_name())
 		);
-		$tables = group_numeric_by_key($db->run_query($query,$params),'TABLE_NAME');
+		$tables = utilities::group_numeric_by_key($db->run_query($query,$params),'TABLE_NAME');
 		foreach($tables as $table) {
 			$required['Tables'][$table] = array(
 				'Add' => array(
@@ -639,7 +639,7 @@ class tables extends module {
 		if (count($pk)==1) {
 			$pk = $pk[0]['COLUMN_NAME'];
 		} else {
-			return $data;	//no support for tables with multiple PKs
+			return false;	//no support for tables with multiple PKs
 		}
 		$joins = "";
 		if (!empty($sql['joins'])) {
@@ -666,7 +666,7 @@ class tables extends module {
 		}
 		if (is_null($slug)) $slug = $id;
 
-		$url = static::get_module_url() . $table_slug . make_url_safe($slug);
+		$url = static::get_module_url() . $table_slug . utilities::make_url_safe($slug);
 		return "<a href='$url'>$id</a>";
 	}
 
@@ -699,13 +699,13 @@ class tables extends module {
 			$output['html'] .= "</ol>";
 			if (!empty($tables_no_rights)) {
 				$query = "SELECT ID, NAME FROM _GROUPS";
-				$groups = group_numeric_by_key($db->run_query($query),'ID');
+				$groups = utilities::group_numeric_by_key($db->run_query($query),'ID');
 
 				array_push(
 					$output['script'],
 					"{$local}script/jquery.min.js",
 					"{$local}script/jquery-ui.min.js",
-					get_public_location(__DIR__ . '/js/create-table-rights.js'),
+					utilities::get_public_location(__DIR__ . '/js/create-table-rights.js'),
 					"var groups = " . json_encode($groups) . ";"
 					);
 				$output['css'][] = "{$local}style/jquery-ui.css";
@@ -788,7 +788,7 @@ class tables extends module {
 									$query .= " LEFT JOIN {$table_join['table']} ON {$table}.{$col} = {$table_join['table']}.{$table_join['column']} ";
 								}
 							}
-							array_push($fk_sql['params'],array("type" => "s", "value" => decode_url_safe($filter)));
+							array_push($fk_sql['params'],array("type" => "s", "value" => utilities::decode_url_safe($filter)));
 							$params = $fk_sql['params'];
 							// will need to get JOIN clause...
 						} else {
@@ -878,7 +878,7 @@ class tables extends module {
 					$output['html'] .= "<a href='".static::get_module_url()."{$table_info['SLUG']}?page={$page}'>Next</a>";
 				}
 				$output['html'] .= "</p>";
-				array_push($output['css'],get_public_location(__DIR__."/style/paging-navigation.css"));
+				array_push($output['css'],utilities::get_public_location(__DIR__."/style/paging-navigation.css"));
 			}
 		}
 		if ($table_info['LINK_TO_ALL_TABLES'])
@@ -898,7 +898,7 @@ class tables extends module {
 				$joins .= "LEFT JOIN {$table_join['table']} ON {$table}.{$col} = {$table_join['table']}.{$table_join['column']} ";
 			}
 		}
-		$params = array_merge($condition['params'],array(array("type" => "s", "value" => decode_url_safe($id))));
+		$params = array_merge($condition['params'],array(array("type" => "s", "value" => utilities::decode_url_safe($id))));
 
 		$query = "SELECT {$table}.* FROM $table $joins WHERE {$condition['concat']} RLIKE ?";
 		$data = $db->run_query($query,$params);
@@ -949,7 +949,7 @@ class tables extends module {
 			} else {
 				$slug = $table;
 			}
-			$output['html'] .= "<p><a href='".static::get_module_url().make_url_safe($slug)."'>Return to $table listing...</a></p>";
+			$output['html'] .= "<p><a href='".static::get_module_url().utilities::make_url_safe($slug)."'>Return to $table listing...</a></p>";
 		}
 		/* Now check for any Table METAs */
 		$query = "
@@ -963,7 +963,7 @@ class tables extends module {
 		if (!empty($metas)) {
 			$output['meta'] = array();
 			foreach($metas as $meta)
-				$output['meta'][$meta['META_NAME']] = replace_formatted_string($meta['META_CONTENT'],"{","}",$data);
+				$output['meta'][$meta['META_NAME']] = utilities::replace_formatted_string($meta['META_CONTENT'],"{","}",$data);
 		}
 		return $output;
 	}
@@ -981,7 +981,7 @@ class tables extends module {
 
 					// Get foreign key details on $loop['COLUMN_NAME']
 					$loop['COLUMNS'] = static::get_table_columns($loop['TABLE_NAME']);
-					$columns_by_name = group_numeric_by_key($loop['COLUMNS'],'COLUMN_NAME');
+					$columns_by_name = utilities::group_numeric_by_key($loop['COLUMNS'],'COLUMN_NAME');
 					if ($columns_by_name[$loop['COLUMN_NAME']]['REFERENCED_TABLE_NAME'] != $table_name) break;	// wrong key
 
 					$order_by_sql = (empty($loop['ORDER_BY']) || static::table_has_column($loop['TABLE_NAME'],$loop['ORDER_BY'])) ? "" : "ORDER BY {$loop['ORDER_BY']}";
@@ -1069,10 +1069,10 @@ class tables extends module {
 									array("type" => "i", "value" => $data[$column['COLUMN_NAME']])
 								);
 								$ref_data = $db->run_query($query,$params);
-								$record_slug = make_url_safe(replace_formatted_string($record_slug,"{","}",$ref_data[0]));
+								$record_slug = utilities::make_url_safe(utilities::replace_formatted_string($record_slug,"{","}",$ref_data[0]));
 							}
 						} else {
-							$record_slug = make_html_safe($data[$column['COLUMN_NAME']]);
+							$record_slug = utilities::make_html_safe($data[$column['COLUMN_NAME']]);
 						}
 						$href .= "/$record_slug";
 						$display = preg_replace("/%{$column['COLUMN_NAME']}_HREF%/",$href,$display);
@@ -1081,28 +1081,28 @@ class tables extends module {
 			}
 		}
 
+		$display = utilities::replace_formatted_string($display,"{","}",$data);
+
 		// search for inline functions - @<function_name> [<param>] [[<param>]...]@
 		if (preg_match_all('/@(?<FUNCTION_NAME>\w[\w\d]+)(?<PARAM_LIST>(\s+[^\s]+)*)@/',$display,$function_calls,PREG_SET_ORDER)) {
 			$inline_functions = static::inline_functions();
 			foreach($function_calls as $fn_data) {
 				if (empty($inline_functions[$fn_data['FUNCTION_NAME']])) continue;
-				$params = explode('\s',trim($fn_data['PARAM_LIST']));
+				$params = preg_split('/\s/',trim($fn_data['PARAM_LIST']));
 				foreach($params as $param)
 				{
-					$param = replace_formatted_string($param,"{","}",$data);
+					$param = utilities::replace_formatted_string($param,"{","}",$data);
 				}
 				$display = str_replace($function_calls[0],call_user_func_array($inline_functions[$fn_data['FUNCTION_NAME']],$params),$display);
 			}
 		}
-
-		$display = replace_formatted_string($display,"{","}",$data);
 
 		return $display;
 	}
 
 	protected static function inline_functions() {
 		return array(
-			'toUrl' => function($val) {return get_public_location($val);},
+			'toUrl' => function($val) {return utilities::get_public_location($val);},
 		);
 	}
 

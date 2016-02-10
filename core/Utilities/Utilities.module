@@ -1,0 +1,14 @@
+{
+	"Module" : "Utilities",
+	"Description" : "System Utility Functions",
+	"Core" : 1,
+	"Filename" : "Utilities.php",
+	"Class" : "utilities",
+	"Requires" : ["Users"],
+	"Helpers" : {
+		"admin" : {
+			"File" : "Utilities.admin.php",
+			"Class" : "utilities_admin"
+		}
+	}
+}

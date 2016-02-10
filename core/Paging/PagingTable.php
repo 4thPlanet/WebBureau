@@ -67,18 +67,18 @@ class pagingtable_widget extends paging implements widget{
 			'script' => array(
 				"{$local}script/jquery.min.js",
 				"{$local}script/jquery-ui.min.js",
-				get_public_location(__DIR__ . '/script/pagingtable.js')
+				utilities::get_public_location(__DIR__ . '/script/pagingtable.js')
 			),
 			'css' => array(
 				"{$local}style/jquery-ui.css",
-				get_public_location(__DIR__ . '/css/pagingtable.css')
+				utilities::get_public_location(__DIR__ . '/css/pagingtable.css')
 			)
 		);
 
 		$attributes = "";
 		if (!empty($this->options))
 			foreach($this->options as $name => $value)
-				$attributes .= "{$name}='".make_html_safe($value,ENT_QUOTES)."' ";
+				$attributes .= "{$name}='".utilities::make_html_safe($value,ENT_QUOTES)."' ";
 
 		$record_num_low = ($this->current_page-1) * $this->per_page + 1;
 		$record_num_high = min($this->num_records,$this->current_page * ($this->per_page));

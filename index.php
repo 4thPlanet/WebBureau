@@ -17,9 +17,7 @@
 
     require_once(__DIR__ . '/includes/ClientData.php');
     $db = new clientData();
-    require_once(__DIR__ . '/includes/Utils.php');
-    require_once(__DIR__ . '/core/Module.php');
-    require_once(__DIR__ . '/core/Widget.php');
+    require_once(__DIR__ . '/core/Utilities/Utilities.php');
 
     session_start();
     $s_user = users::get_session_user();

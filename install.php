@@ -149,14 +149,14 @@ if (empty($_POST['username'])) {
 		die('Unable to write to ClientData.php.  Check write permissions. Current User = ' . exec('whoami'));
 	}
 
-	require_once('includes/ClientData.php');
-	require_once('includes/Utils.php');
-	require_once('core/Module.php');
-	require_once('core/Widget.php');
-
 	global $db,$local_dir;
-	$db = new clientData();
 	$local_dir = __DIR__ . "/";
+
+	require_once('includes/ClientData.php');
+	require_once('core/Utilities/Utilities.php');
+
+	$db = new clientData();
+
 	?>
 <html>
 	<head>
@@ -169,7 +169,7 @@ if (empty($_POST['username'])) {
 
 
 	/* Do a search of all .module files... */
-	$module_files = recursive_glob('*.module');
+	$module_files = utilities::recursive_glob('*.module');
 	/* For each .module file, convert to object from JSON */
 	$every_module = array();
 	$idx=0;
@@ -197,6 +197,10 @@ if (empty($_POST['username'])) {
 			if (!empty($mod_info['Still_Requires'])) continue;
 			/* Install... */
 			$mod_name = $mod_info['Module'];
+			if (!empty($mod_info['Extends'])) {
+				// Get Parent Module ID...
+				$mod_info['ModuleParentID'] = module::get_module_id($mod_info['Extends']);
+			}
 			echo "Installing module $mod_name...<br />";
 			if (!module::install_module($mod_info)) die("Unable to install module $mod_name");
 			unset($every_module[$idx]);
@@ -218,6 +222,18 @@ if (empty($_POST['username'])) {
 		(A.AREA_NAME = 'left-sidebar' AND W.NAME IN ('Login','Welcome'))";
 	$db->run_query($query);
 
+	// check for missing rights for the modules module...
+	$all_modules_rights = modules::required_rights();
+	foreach($all_modules_rights['Modules']['Administer'] as $right_name => $right_data)
+	{
+		if (!users::get_right_id('Modules','Administer',$right_name))
+		{
+			$new_right = users::create_right('Modules','Administer',$right_name,$right_data['description'],true);
+			//assign to Admin...(STILL TODO!!)
+
+		}
+	}
+
 	/* Just so there's something there, menu is the Tables module... */
 	$query = "
 		INSERT INTO _MENU (MODULE_ID, TEXT, DISPLAY_ORDER)
@@ -225,6 +241,7 @@ if (empty($_POST['username'])) {
 		FROM _MODULES
 		WHERE NAME = 'Tables'";
 	$db->run_query($query);
+
 	/* Add one more - the Modules Module (and its submenus)...*/
 	modules::install_menu();
 
@@ -239,6 +256,8 @@ if (empty($_POST['username'])) {
 		('_WIDGETS','{NAME}'),
 		('_USERS','{USERNAME}')";
 	$db->run_query($query);
+
+
 
 	if (
 	Users::create_user(

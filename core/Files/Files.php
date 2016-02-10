@@ -29,7 +29,7 @@ class files extends module {
 			SELECT ID,FILENAME,TITLE
 			FROM _FILES
 		";
-		return group_numeric_by_key($db->run_query($query),'ID');
+		return utilities::group_numeric_by_key($db->run_query($query),'ID');
 	}
 
 	public static function view() {
@@ -62,7 +62,7 @@ class files extends module {
 			foreach($files as $file) {
 				$output['html'] .= "
 					<tr>
-						<td><a target='_blank' href='".get_public_location($file['FILENAME'])."'>{$file['TITLE']}</a></td>
+						<td><a target='_blank' href='".utilities::get_public_location($file['FILENAME'])."'>{$file['TITLE']}</a></td>
 						<td>{$file['DESCRIPTION']}</td>
 					</tr>";
 			}

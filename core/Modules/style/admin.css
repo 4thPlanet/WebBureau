@@ -1,0 +1,17 @@
+ul#admin_menu {
+    list-style: none;
+    overflow: auto;
+    padding: 0px;
+    margin: .5em 0em 0em;
+}
+
+ul#admin_menu li {float: left;padding: .25em .25em;background: #CCC;border: solid 1px black;border-bottom: none;}
+ul#admin_menu li.active {
+    background: none;
+    border: none;
+    border-bottom: solid 1px black;
+}
+ul#admin_menu li a {
+    text-decoration: none;
+    color: black;
+}

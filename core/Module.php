@@ -1,8 +1,54 @@
 <?php
 class module {
 	/* Basic Contructor */
-	public function __construct() {
+	public function __construct($id=false) {
+		if ($id) {
+			$this->init($id);
+		}
 	}
+
+	private function init($id) {
+		global $db;
+		$query = "
+			SELECT *
+			FROM _MODULES M
+			WHERE M.ID = ?
+		";
+		$params = array(
+			array("type" => "i", "value" => $id)
+		);
+		$result = $db->run_query($query,$params);
+		if (empty($result)) return false;
+		else {
+			$module_data = $result[0];
+			foreach($module_data as $var=>$val)
+			{
+				$this->$var = $val;
+			}
+			return true;
+		}
+	}
+
+	public function get_module_extensions() {
+		global $db;
+		$query = "
+			SELECT *
+			FROM _MODULES M
+			WHERE PARENT_MODULE_ID = ?
+		";
+		$params = array(
+				array("type" => "i", "value" => $this->ID)
+		);
+		return $db->run_query($query,$params);
+	}
+
+	public static function get_module_by_name($module) {
+		$id = static::get_module_id($module);
+		if ($id) return new module($id);
+		else return false;
+	}
+
+
 	/* Returns a help string */
 	public static function help() {
 		return "<p>This help text is useless right now.  It should be properly set by writing a 'help' function within ".get_called_class()."'s class.</p>";
@@ -39,9 +85,10 @@ class module {
 		$result = $db->run_query($query,$params);
 		if ($result[0]['is_installed']) return false;
 		/* Save the Module record... */
-		$query = "INSERT INTO _MODULES (NAME,DESCRIPTION,IS_CORE,FILENAME,CLASS_NAME) VALUES (?,?,?,?,?)";
+		$query = "INSERT INTO _MODULES (NAME,PARENT_MODULE_ID,DESCRIPTION,IS_CORE,FILENAME,CLASS_NAME) VALUES (?,?,?,?,?,?)";
 		$params = array(
 			array("type" => "s", "value" => $info['Module']),
+			array("type" => "s", "value" => isset($info['ModuleParentID']) ? $info['ModuleParentID'] : NULL),
 			array("type" => "s", "value" => $info['Description']),
 			array("type" => "s", "value" => $info['Core']),
 			array("type" => "s", "value" => $info['Directory'] . $info['Filename']),
@@ -101,7 +148,7 @@ class module {
 							$params = array();
 							foreach($right_info['default_groups'] as $group)
 								array_push($params,array("type" => "s", "value" => $group));
-							$groups = group_numeric_by_key($db->run_query($query,$params),'ID');
+							$groups = utilities::group_numeric_by_key($db->run_query($query,$params),'ID');
 							users::assign_rights(array($new_right => $groups),true);
 						}
 					}
@@ -121,12 +168,14 @@ class module {
 			CREATE TABLE IF NOT EXISTS _MODULES (
 				ID int AUTO_INCREMENT,
 				NAME varchar(30),
+				PARENT_MODULE_ID int,
 				DESCRIPTION varchar(255),
 				IS_CORE bit,
 				FILENAME varchar(200),
 				CLASS_NAME varchar(100),
 				SLUG varchar(50) UNIQUE,
-				PRIMARY KEY (ID)
+				PRIMARY KEY (ID),
+				FOREIGN KEY (PARENT_MODULE_ID) REFERENCES _MODULES(ID)
 			);";
 		$db->run_query($query);
 		$query = "
@@ -273,8 +322,9 @@ class module {
 			LEFT JOIN _MODULES_HELPERS MH ON H.ID = MH.HELPER_ID AND M.ID = MH.MODULE_ID
 			WHERE M.ID = ?";
 		array_push($params,array("type" => "i", "value" => $module));
-		return group_numeric_by_key($db->run_query($query,$params),'TYPE');
+		return utilities::group_numeric_by_key($db->run_query($query,$params),'TYPE');
 	}
+
 	/* returns module id, given the name of the module */
 	public static function get_module_id($module) {
 		global $db;

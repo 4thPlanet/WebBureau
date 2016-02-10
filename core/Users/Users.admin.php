@@ -53,7 +53,7 @@ class users_admin extends users {
 				JOIN _GROUPS G ON UG.GROUP_ID = G.ID
 				GROUP BY U.ID, U.USERNAME, U.EMAIL, U.REGISTER_DATE
 				ORDER BY U.ID";
-			$users = make_html_safe($db->run_query($query),ENT_QUOTES);
+			$users = utilities::make_html_safe($db->run_query($query),ENT_QUOTES);
 			$output['html'] .= "
 			<p><a href='".users::get_module_url()."register'>Register new user</a></p>
 			<table>
@@ -100,17 +100,17 @@ class users_admin extends users {
 				exit();
 				return;
 			}
-			$user_info = make_html_safe($result[0],ENT_QUOTES);
+			$user_info = utilities::make_html_safe($result[0],ENT_QUOTES);
 			/* Get User's Groups... */
 			$query = "SELECT NAME FROM _USERS_GROUPS UG JOIN _GROUPS G ON UG.GROUP_ID = G.ID WHERE USER_ID = ?";
 			$params = array(
 				array("type" => "i", "value" => $id)
 			);
-			$user_groups = group_numeric_by_key($db->run_query($query,$params),'NAME');
+			$user_groups = utilities::group_numeric_by_key($db->run_query($query,$params),'NAME');
 
 			/* Get All Groups... */
 			$query = "SELECT NAME FROM _GROUPS";
-			$groups = group_numeric_by_key($db->run_query($query),'NAME');
+			$groups = utilities::group_numeric_by_key($db->run_query($query),'NAME');
 
 			$output['html'] .= "
 				<h4>{$user_info['USERNAME']} (Member since ".preg_replace('/(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)/','$2/$3/$1',$user_info['REGISTER_DATE']).")</h4>
@@ -138,13 +138,13 @@ class users_admin extends users {
 				$output['script'],
 				"{$local}script/jquery.min.js",
 				"{$local}script/jquery-ui.min.js",
-				get_public_location(__DIR__ . '/js/user-groups.js'),
+				utilities::get_public_location(__DIR__ . '/js/user-groups.js'),
 				'var groups = '.json_encode($groups,true).';'
 			);
 			array_push(
 				$output['css'],
 				"{$local}style/jquery-ui.css",
-				get_public_location(__DIR__ . '/style/user-groups.css')
+				utilities::get_public_location(__DIR__ . '/style/user-groups.css')
 			);
 		}
 		return $output;
@@ -212,7 +212,7 @@ class users_admin extends users {
 			'scripts' => array()
 		);
 		if (empty($id)) {
-			$groups = make_html_safe(static::get_groups());
+			$groups = utilities::make_html_safe(static::get_groups());
 			$output['html'] .= "
 			<p><a href='".modules::get_module_url()."Users/Groups/new'>Create New Group</a></p>
 			<table>
@@ -250,7 +250,7 @@ class users_admin extends users {
 					exit();
 					return;
 				}
-				$group = make_html_safe($result[0]);
+				$group = utilities::make_html_safe($result[0]);
 				$action = "Edit {$group['NAME']}";
 			}
 			/* Will Need EVERY right as well (if user has assign rights right)... */

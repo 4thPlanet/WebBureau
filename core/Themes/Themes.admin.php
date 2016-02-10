@@ -1,7 +1,7 @@
 <?php
 class themes_admin extends themes {
 	public static function ajax($args,$request) {}
-	
+
 	public static function post($args,$request) {
 		global $db,$s_user;
 		if (empty($args)) {
@@ -55,13 +55,13 @@ class themes_admin extends themes {
 			}
 		}
 	}
-	
+
 	public static function view($theme = '') {
-		if (empty($theme)) 
+		if (empty($theme))
 			return static::view_themes();
 		else return static::view_theme($theme);
 	}
-	
+
 	protected static function view_themes() {
 		global $db;
 		$output = array(
@@ -87,7 +87,7 @@ class themes_admin extends themes {
 						<td>{$theme['IS_DEFAULT_THEME']}</td>
 					</tr>";
 			}
-			$output['html'] .= "			
+			$output['html'] .= "
 				</tbody>
 			</table>";
 		} else {
@@ -102,13 +102,13 @@ class themes_admin extends themes {
 			</form>";
 		return $output;
 	}
-	
+
 	protected static function view_theme($theme) {
 		global $db,$s_user;
 		$output = array(
 			'html' => '<h3>Theme Administration</h3>'
 		);
-		
+
 		$query = "SELECT * FROM _THEMES WHERE ID = ?";
 		$params = array(
 			array("type" => "i", "value" => $theme)
@@ -119,9 +119,9 @@ class themes_admin extends themes {
 			exit();
 			return;
 		}
-		
+
 		$theme = $result[0];
-		
+
 		if ($s_user->check_right('Themes','Administration','Edit Themes')) {
 			$output['html'] .= "
 			<form method='post' action=''>
@@ -151,16 +151,16 @@ class themes_admin extends themes {
 				$selected = ($module['ID'] == $theme['MODULE_ID']) || (is_null($theme['MODULE_ID']) && $module['NAME'] == 'Layout' ) ? 'selected="selected"' : '';
 				$output['html'] .= "<option value='{$module['ID']}' $selected>{$module['NAME']}</option>";
 			}
-			$output['html'] .= "						
+			$output['html'] .= "
 					</select>
 				</div>
 				<div class='field'>
 					<input type='submit' value='Save Theme' />
 				</div>
-			</form>";	
+			</form>";
 		} else {
 			$output['html'] .= "<h4>{$theme['NAME']} Theme</h4>";
-			$output['html'] .= "<p><a href='".static::get_module_url()."css/{$theme['ID']}-".make_url_safe($theme['NAME']).".css'>Stylesheet link should go here...</a></p>";
+			$output['html'] .= "<p><a href='".static::get_module_url()."css/{$theme['ID']}-".utilities::make_url_safe($theme['NAME']).".css'>Stylesheet link should go here...</a></p>";
 			if ($s_user->check_right('Themes','Administration','Set Default Theme') && !$theme['IS_DEFAULT']) {
 				$output['html'] .= "
 				<form method='post' action=''>
@@ -172,9 +172,9 @@ class themes_admin extends themes {
 				$output['html'] .= "<p>Currently site default theme.</p>";
 			}
 		}
-		
+
 		$output['html'] .= "<p><a href='".modules::get_module_url()."Themes'>Return to theme administration</a></p>";
-		
+
 		return $output;
 	}
 }

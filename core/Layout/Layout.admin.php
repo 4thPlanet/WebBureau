@@ -26,11 +26,11 @@ class layout_admin extends layout {
 				"{$local}script/jquery-ui.min.js",
 				"{$local}script/ckeditor/ckeditor.js",
 				"{$local}script/ckeditor/adapters/jquery.js",
-				get_public_location(__DIR__ . '/js/static_blocks.js')
+				utilities::get_public_location(__DIR__ . '/js/static_blocks.js')
 			),
 			"css" => array(
 				"{$local}style/jquery-ui.css",
-				get_public_location(__DIR__ . '/style/static_blocks.css')
+				utilities::get_public_location(__DIR__ . '/style/static_blocks.css')
 			)
 		);
 		$output['html'] .= <<<HTML
@@ -51,7 +51,7 @@ HTML;
 			SELECT ID,IDENTIFIER,HTML
 			FROM _LAYOUT_STATIC_HTML
 		";
-		$static_blocks = make_html_safe($db->run_query($query),ENT_QUOTES);
+		$static_blocks = utilities::make_html_safe($db->run_query($query),ENT_QUOTES);
 		foreach($static_blocks as $block)
 		{
 			$output['html'] .= <<<INPUT
@@ -105,11 +105,11 @@ INPUT;
 			'script' => array(
 				"{$local}script/jquery.min.js",
 				"{$local}script/jquery-ui.min.js",
-				get_public_location(__DIR__ . '/js/layout.js')
+				utilities::get_public_location(__DIR__ . '/js/layout.js')
 			),
 			'css' => array(
 				"{$local}style/jquery-ui.css",
-				get_public_location(__DIR__ . '/style/layout.css')
+				utilities::get_public_location(__DIR__ . '/style/layout.css')
 			)
 		);
 		$output['html'] .= "<p><a href='".static::get_module_url()."static-text'>Click here to edit static text blocks.</a></p>";
@@ -134,7 +134,7 @@ INPUT;
 			$area_widgets = $db->run_query($query,$params);
 			foreach($area_widgets as $aw) {
 				$has_setup = (int) method_exists($aw['CLASS_NAME'],'setup');
-				$args = $has_setup ? make_html_safe(json_encode(unserialize($aw['ARGUMENTS'])),ENT_QUOTES) : "";
+				$args = $has_setup ? utilities::make_html_safe(json_encode(unserialize($aw['ARGUMENTS'])),ENT_QUOTES) : "";
 				$setup = $has_setup ? "<button class='setup'>Setup...</button>" : "";
 
 
@@ -152,7 +152,7 @@ INPUT;
 						array(
 							'id' => $aw['ID'],
 							'type' => $aw['BLACKLIST_RESTRICTED'],
-							'mods' => group_numeric_by_key($db->run_query($query,$params),'MODULE_ID')
+							'mods' => utilities::group_numeric_by_key($db->run_query($query,$params),'MODULE_ID')
 						));
 				}
 			}
@@ -178,7 +178,7 @@ INPUT;
 			</ul>";
 		$output['script'][] = "var areas = " . json_encode($area_names) . ";" ;
 		$query = "SELECT ID, NAME FROM _MODULES";
-		$modules = group_numeric_by_key($db->run_query($query),'ID');
+		$modules = utilities::group_numeric_by_key($db->run_query($query),'ID');
 		$output['script'][] = "var modules = ". json_encode($modules) . ";";
 		$output['script'][] = "var restrictions = " . json_encode($restrictions) . ";";
 		return $output;

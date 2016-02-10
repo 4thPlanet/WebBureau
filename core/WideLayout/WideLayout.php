@@ -19,9 +19,9 @@ class layout_wide extends layout {
 			}
 		}
 
-		static::force_asset($initial,'css',get_public_location(__DIR__ . '/style/style.css'));
+		static::force_asset($initial,'css',utilities::get_public_location(__DIR__ . '/style/style.css'));
 		static::force_asset($initial,'script',"{$local}script/jquery.min.js");
-		static::force_asset($initial,'script',get_public_location(__DIR__ . '/script/script.js'));
+		static::force_asset($initial,'script',utilities::get_public_location(__DIR__ . '/script/script.js'));
 ?><!DOCTYPE html>
 <html>
 	<head>
@@ -30,14 +30,14 @@ class layout_wide extends layout {
 			/* Go through scripts (if any) */
 			if (!empty($initial['script'])) {
 				foreach($initial['script'] as $script) {
-					if (filter_var(url_protocol_check($script),FILTER_VALIDATE_URL))
+					if (filter_var(utilities::url_protocol_check($script),FILTER_VALIDATE_URL))
 						echo "<script type='text/Javascript' src='$script'></script>";
 					else echo "<script type='text/Javascript'>$script</script>";
 				}
 			} else $initial['script'] = array();
 			/* Go through CSS */
 			foreach($initial['css'] as $css) {
-				if (filter_var(url_protocol_check($css), FILTER_VALIDATE_URL))
+				if (filter_var(utilities::url_protocol_check($css), FILTER_VALIDATE_URL))
 					echo "<link rel='stylesheet' type='text/css' href='$css' />";
 				else echo "<style type='text/css'>$css</style>";
 			}
@@ -49,7 +49,7 @@ class layout_wide extends layout {
 			/* Load any CSS from widgets */
 			if (!empty($content['css'])) foreach($content['css'] as $css) {
 				if (in_array($css,$loaded_sources['css'])!==false) continue;
-				if (filter_var(url_protocol_check($css), FILTER_VALIDATE_URL))
+				if (filter_var(utilities::url_protocol_check($css), FILTER_VALIDATE_URL))
 					echo "<link rel='stylesheet' type='text/css' href='$css' />";
 				else echo "<style type='text/css'>$css</style>";
 				$loaded_sources['css'][] = $css;
@@ -57,7 +57,7 @@ class layout_wide extends layout {
 			/* Load any Scripts from Widgets */
 			if (!empty($content['script'])) foreach($content['script'] as $script) {
 				if (in_array($script,$loaded_sources['script'])) continue;
-				if (filter_var(url_protocol_check($script),FILTER_VALIDATE_URL))
+				if (filter_var(utilities::url_protocol_check($script),FILTER_VALIDATE_URL))
 					echo "<script type='text/Javascript' src='$script'></script>";
 				else echo "<script type='text/Javascript'>$script</script>";
 				$loaded_sources['script'][] = $script;

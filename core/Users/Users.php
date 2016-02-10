@@ -56,13 +56,13 @@ class users extends module {
 		$params = array(
 			array("type" => "i", "value" => $this->user_info['ID'])
 		);
-		$groups = group_numeric_by_key($db->run_query($query,$params),'NAME');
+		$groups = utilities::group_numeric_by_key($db->run_query($query,$params),'NAME');
 		if (!empty($groups)) return;
 		$query = "SELECT * FROM _GROUPS G WHERE G.NAME = ?";
 		$params = array(
 			array("type" => "s", "value" => "Guest")
 		);
-		$groups = group_numeric_by_key($db->run_query($query,$params),'NAME');
+		$groups = utilities::group_numeric_by_key($db->run_query($query,$params),'NAME');
 	}
 
 	public function check_right($module,$type,$right) {
@@ -151,7 +151,7 @@ class users extends module {
 			return;
 		} else {
 			$username = $_POST['username'];
-			$password = user_password_hash($username,$_POST['password']);
+			$password = utilities::user_password_hash($username,$_POST['password']);
 			$query = "SELECT *
 			FROM _USERS
 			WHERE USERNAME = ? AND PASSWORD = ?";
@@ -255,10 +255,10 @@ class users extends module {
 			$output['script'][] = "{$local}script/jquery.min.js";
 			$output['script'][] = "{$local}script/jquery-ui.min.js";
 			$output['css'][] = "{$local}style/jquery-ui.css";
-			$output['css'][] = get_public_location(__DIR__ . '/style/user-groups.css');
-			$output['script'][] = get_public_location(__DIR__ . '/js/user-groups.js');
+			$output['css'][] = utilities::get_public_location(__DIR__ . '/style/user-groups.css');
+			$output['script'][] = utilities::get_public_location(__DIR__ . '/js/user-groups.js');
 			$query = "SELECT NAME FROM _GROUPS WHERE NAME NOT IN ('Guest','Registered User')";
-			$groups = json_encode(group_numeric_by_key($db->run_query($query),'NAME'));
+			$groups = json_encode(utilities::group_numeric_by_key($db->run_query($query),'NAME'));
 
 			$output['script'][] = "var groups = " . $groups;
 		}
@@ -304,7 +304,7 @@ class users extends module {
 		foreach($users as $user) {
 			$groups = explode(",",$user['Groups']);
 			foreach($groups as &$group)
-				$group = "<a href='".static::get_module_url()."groups/".make_url_safe($group)."'>$group</a>";
+				$group = "<a href='".static::get_module_url()."groups/".utilities::make_url_safe($group)."'>$group</a>";
 			$user['Groups'] = implode(",",$groups);
 			$output['html'] .= "
 				<tr>
@@ -376,7 +376,7 @@ class users extends module {
 			FROM _GROUPS
 			WHERE NAME RLIKE ?";
 		$params = array(
-			array("type" =>"s", "value" => decode_url_safe($group))
+			array("type" =>"s", "value" => utilities::decode_url_safe($group))
 		);
 		$result = $db->run_query($query,$params);
 		if (empty($result)) {
@@ -415,15 +415,15 @@ class users extends module {
 		);
 		$users = $db->run_query($query,$params);
 		foreach($users as $user) {
-			$user_html = make_html_safe($user['USERNAME']);
-			$user_url = make_url_safe($user['USERNAME']);
+			$user_html = utilities::make_html_safe($user['USERNAME']);
+			$user_url = utilities::make_url_safe($user['USERNAME']);
 			$groups = explode(",",$user['GROUPS']);
 			foreach($groups as $idx=>&$group) {
 				if (!$s_user->check_right('Users','Groups',"View $group")) {
 					unset($groups[$idx]);
 					continue;
 				}
-				$group = "<a href='".static::get_module_url()."groups/".make_url_safe($group)."'>".make_html_safe($group)."</a>";
+				$group = "<a href='".static::get_module_url()."groups/".utilities::make_url_safe($group)."'>".utilities::make_html_safe($group)."</a>";
 			}
 			unset($group);
 			$output['html'] .= "
@@ -459,7 +459,7 @@ class users extends module {
 			exit();
 			return;
 		}
-		$user_info = make_html_safe($result[0],ENT_QUOTES);
+		$user_info = utilities::make_html_safe($result[0],ENT_QUOTES);
 
 
 		$output = array('html' => '<h3>Edit User Information</h3>');
@@ -551,7 +551,7 @@ class users extends module {
 		$user = static::get_session_user();
 		$error = false;
 		/* Confirm "old" password is correct */
-		if (user_password_hash($username,$data['old'])!==$user->get_hashed_password()) {
+		if (utilities::user_password_hash($username,$data['old'])!==$user->get_hashed_password()) {
 			layout::set_message('Unable to confirm current password.','error');
 			$error = true;
 		}
@@ -568,11 +568,11 @@ class users extends module {
 		/* Update Password */
 		$query = "UPDATE _USERS SET PASSWORD = ? WHERE USERNAME = ?";
 		$params = array(
-			array("type" => "s", "value" => user_password_hash($username,$data['new'])),
+			array("type" => "s", "value" => utilities::user_password_hash($username,$data['new'])),
 			array("type" => "s", "value" => $username)
 		);
 		$db->run_query($query,$params);
-		$user->refresh_hashed_password(user_password_hash($username,$data['new']));
+		$user->refresh_hashed_password(utilities::user_password_hash($username,$data['new']));
 
 		layout::set_message("Password has been updated.","info");
 		header("Location: " . static::get_module_url() . "$username/edit");
@@ -587,7 +587,7 @@ class users extends module {
 		$data = array_change_key_case($data);
 		if (empty($data['username'])) return 'Username is a required field';
 		elseif (empty($data['password']) && empty($data['email'])) return 'Password and/or email must be submitted.';
-		elseif (empty($data['password'])) $data['password'] = create_random_string(8);
+		elseif (empty($data['password'])) $data['password'] = utilities::create_random_string(8);
 
 		/* Check for username uniqueness */
 		$query = "SELECT CASE COUNT(*) WHEN 0 THEN 1 ELSE 0 END AS IS_UNIQUE
@@ -607,7 +607,7 @@ class users extends module {
 		VALUES (?,?,?,?)";
 		$params = array(
 			array("type" => "s", "value" => $data['username']),
-			array("type" => "s", "value" => user_password_hash($data['username'],$data['password'])),
+			array("type" => "s", "value" => utilities::user_password_hash($data['username'],$data['password'])),
 			array("type" => "s", "value" => $data['email']),
 			array("type" => "s", "value" => $data['display']),
 		);
@@ -648,7 +648,7 @@ Please store this information in a secure location.  Your password cannot be ret
 Regards,
 
 {$local}";
-			send_email($emailParams);
+			utilities::send_email($emailParams);
 		}
 		return true;
 	}
@@ -701,7 +701,7 @@ Regards,
 
 		/* For each group add Users/Groups/View <Group Name>... */
 		$query = "SELECT NAME FROM _GROUPS";
-		$groups = group_numeric_by_key($db->run_query($query),'NAME');
+		$groups = utilities::group_numeric_by_key($db->run_query($query),'NAME');
 		foreach($groups as $group)
 			$rights['Users']['Groups']["View $group"] = array(
 				'description' => "Allows a user to view the $group group.",

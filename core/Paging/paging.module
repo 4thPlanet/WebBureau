@@ -4,7 +4,8 @@
 	"Core" : 1,
 	"Filename" : "Paging.php",
 	"Class" : "paging",
-	"Requires" : [],
+	"Requires" : ["Utilities"],
+	"Extends" : "Utilities",
 	"Install Order" : 0,
 	"Helpers" : {}
 }

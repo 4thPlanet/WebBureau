@@ -8,7 +8,7 @@ class personal_theme_widget extends themes implements widget {
 			FROM _MODULES M
 			JOIN _RIGHT_TYPES T ON M.ID = T.MODULE_ID
 			JOIN _RIGHTS R ON T.ID = R.RIGHT_TYPE_ID
-			LEFT JOIN _WIDGETS W ON 
+			LEFT JOIN _WIDGETS W ON
 				M.ID = W.MODULE_ID AND
 				? = W.FILENAME
 			WHERE M.CLASS_NAME = ? AND R.NAME = ? AND W.ID IS NULL";
@@ -23,9 +23,9 @@ class personal_theme_widget extends themes implements widget {
 		$db->run_query($query,$params);
 		return true;
 	}
-	
-	
-	
+
+
+
 	public static function ajax($request) {
 		switch($request['ajax']) {
 			case 'set-theme':
@@ -33,7 +33,7 @@ class personal_theme_widget extends themes implements widget {
 		}
 		return array('success' => 0);
 	}
-	
+
 	public static function view() {
 		global $db,$local,$s_user;
 		$query = "SELECT ID,NAME FROM _THEMES ORDER BY NAME";
@@ -46,18 +46,18 @@ class personal_theme_widget extends themes implements widget {
 					unset($themes[$idx]);
 			if (empty($themes)) return array();
 		}
-		
+
 		$output = array(
 			'html' => '<h5>Change Site Theme</h5>',
 			'script' => array(
 				"{$local}script/jquery.min.js",
-				get_public_location(__DIR__ . '/js/personal-theme.js')
+				utilities::get_public_location(__DIR__ . '/js/personal-theme.js')
 			)
 		);
-		
+
 		$user_theme = $s_user->get_theme();
 		if (empty($user_theme)) $user_theme['ID'] = null;
-		
+
 		$output['html'] .= "
 		<p>Select a new theme for a different look:</p>
 		<form id='personal-theme' method='post' action=''>
@@ -71,8 +71,8 @@ class personal_theme_widget extends themes implements widget {
 			</select>
 			<input type='submit' value='Use This Theme!' />
 		</form>";
-		
-		
+
+
 		return $output;
 	}
 }

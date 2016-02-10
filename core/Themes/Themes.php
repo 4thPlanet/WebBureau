@@ -15,7 +15,7 @@ class themes extends module {
 				FOREIGN KEY (MODULE_ID) REFERENCES _MODULES(ID)
 			);";
 		$db->run_query($query);
-		
+
 		$query = "
 			CREATE TABLE IF NOT EXISTS _USERS_THEMES (
 				USER_ID int,
@@ -27,14 +27,14 @@ class themes extends module {
 				FOREIGN KEY (THEME_ID) REFERENCES _THEMES(ID)
 			);";
 		$db->run_query($query);
-		
+
 		/* Install widgets... */
 		require_once(__DIR__ . '/Personal.Themes.Widget.php');
 		personal_theme_widget::install();
-		
+
 		return true;
 	}
-	
+
 	/* Sets user theme for current user.  In the future, a new parameter, $user = NULL, will be added for setting theme for a user other than the current user... */
 	protected static function set_user_theme($theme) {
 		global $db,$s_user;
@@ -59,11 +59,11 @@ class themes extends module {
 		$s_user->reload_theme();
 		return true;
 	}
-	
+
 	public static function post() {}
-	
+
 	public static function ajax() {}
-	
+
 	public static function view($theme='',$file='') {
 		global $db,$s_user;
 		if ($theme=='css' && !empty($file)) {
@@ -71,7 +71,7 @@ class themes extends module {
 		}
 		/* TODO: Only allow if user has Themes/Selection/<ANYTHING> available... */
 	}
-	
+
 	/* This file will output a stylesheet stored in the database.  Filename should be of the form <ID>-<THEME_NAME>.css */
 	protected static function get_stylesheet($filename) {
 		global $db;
@@ -79,7 +79,7 @@ class themes extends module {
 		$query = "SELECT STYLE FROM _THEMES WHERE ID = ? AND NAME RLIKE ?";
 		$params = array(
 			array("type" => "i", "value" => $theme['ID']),
-			array("type" => "s", "value" => decode_url_safe($theme['NAME']))
+			array("type" => "s", "value" => utilities::decode_url_safe($theme['NAME']))
 		);
 		$result = $db->run_query($query,$params);
 		if (empty($result)) die(2);
@@ -87,10 +87,10 @@ class themes extends module {
 		echo $result[0]['STYLE'];
 		exit;
 	}
-	
+
 	public static function required_rights() {
 		global $db;
-		
+
 		$rights = array(
 			'Themes' => array(
 				'Administration' => array(
@@ -124,7 +124,7 @@ class themes extends module {
 				)
 			)
 		);
-		
+
 		/* Now get each individual theme and create a right to select it... */
 		$query = "SELECT NAME FROM _THEMES";
 		$themes = $db->run_query($query);
@@ -136,7 +136,7 @@ class themes extends module {
 				);
 		return $rights;
 	}
-	
+
 	/* This function will display the actual page... */
 	public static function view_page() {
 		global $db,$s_user;
@@ -145,7 +145,7 @@ class themes extends module {
 			layout::setup_page();
 			return;
 		}
-		$css = $theme['HAS_STYLESHEET'] ? array(static::get_module_url() . "css/{$theme['ID']}-".make_url_safe($theme['NAME']).".css") : array();
+		$css = $theme['HAS_STYLESHEET'] ? array(static::get_module_url() . "css/{$theme['ID']}-".utilities::make_url_safe($theme['NAME']).".css") : array();
 		call_user_func_array(
 			array($theme['CLASS_NAME'],'setup_page'),
 			array(

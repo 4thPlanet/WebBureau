@@ -25,13 +25,13 @@ class menu_admin extends menu {
 			"{$local}script/jquery.min.js",
 			"{$local}script/jquery-ui.min.js",
 			"{$local}script/jquery-sortable.js",
-			get_public_location(__DIR__ . '/js/menu-transfer-list.js')
+			utilities::get_public_location(__DIR__ . '/js/menu-transfer-list.js')
 		);
 
 		array_push($output['css'],
 			"{$local}style/jquery-ui.css",
 			"{$local}style/jquery-sortable.css",
-			get_public_location(__DIR__ . '/style/menu-admin.css')
+			utilities::get_public_location(__DIR__ . '/style/menu-admin.css')
 		);
 
 		$output['html'] .= "<h2>Menu Edit</h2>
@@ -65,7 +65,7 @@ class menu_admin extends menu {
 
 	/* Recursive function to convert $obj to a li element*/
 	protected static function menu_object_to_li($name,$obj) {
-		$li = "<li right='{$obj['right']}' args='".make_html_safe(json_encode($obj['args']),ENT_QUOTES)."'><span class='menu-text'>$name</span> <span class='to-menu' title='Click here to move this item onto the menu.'>--&gt;</span>";
+		$li = "<li right='{$obj['right']}' args='".utilities::make_html_safe(json_encode($obj['args']),ENT_QUOTES)."'><span class='menu-text'>$name</span> <span class='to-menu' title='Click here to move this item onto the menu.'>--&gt;</span>";
 		if (!empty($obj['submenu']))  {
 			$li .= "<ul>";
 			foreach($obj['submenu'] as $text=>$submenu) {
