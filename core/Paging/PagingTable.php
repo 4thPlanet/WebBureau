@@ -152,25 +152,27 @@ TABLE;
 	protected function build_table_body() {
 		$data = $this->get_current_page();
 		$html = "";
-		foreach($data as $row) {
-			$html .= "<tr>";
-			foreach($this->columns as $column) {
-				$val = isset($column['column']) ? $row[$column['column']] : null;
-				if (isset($column['display_function']) && is_callable($column['display_function'])){
-					$params = array($val,$row);
-					if (!empty($column['display_function_add_params'])) $params = array_merge($params,$column['display_function_add_params']);
-					$val = call_user_func_array($column['display_function'],$params);
-				}
-				if (!empty($column['display_format']))
-					$val = sprintf($column['display_format'],$val);
+		if ($data) {
+			foreach($data as $row) {
+				$html .= "<tr>";
+				foreach($this->columns as $column) {
+					$val = isset($column['column']) ? $row[$column['column']] : null;
+					if (isset($column['display_function']) && is_callable($column['display_function'])){
+						$params = array($val,$row);
+						if (!empty($column['display_function_add_params'])) $params = array_merge($params,$column['display_function_add_params']);
+						$val = call_user_func_array($column['display_function'],$params);
+					}
+					if (!empty($column['display_format']))
+						$val = sprintf($column['display_format'],$val);
 
-				if (isset($column['nowrap']) && $column['nowrap'] == false)
-					$class = 'wrap';
-				else
-					$class = '';
-				$html .= "<td class='$class'>$val</td>";
+					if (isset($column['nowrap']) && $column['nowrap'] == false)
+						$class = 'wrap';
+					else
+						$class = '';
+					$html .= "<td class='$class'>$val</td>";
+				}
+				$html .= "</tr>";
 			}
-			$html .= "</tr>";
 		}
 		return $html;
 	}

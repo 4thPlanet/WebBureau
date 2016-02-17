@@ -224,13 +224,15 @@ if (empty($_POST['username'])) {
 
 	// check for missing rights for the modules module...
 	$all_modules_rights = modules::required_rights();
+	$all_groups = utilities::group_numeric_by_key(users::get_groups(), 'NAME');
+	$admin = $all_groups['Admin']['ID'];
 	foreach($all_modules_rights['Modules']['Administer'] as $right_name => $right_data)
 	{
 		if (!users::get_right_id('Modules','Administer',$right_name))
 		{
 			$new_right = users::create_right('Modules','Administer',$right_name,$right_data['description'],true);
 			//assign to Admin...(STILL TODO!!)
-
+			users::assign_rights(array($new_right => array($admin)),true);
 		}
 	}
 
@@ -241,7 +243,6 @@ if (empty($_POST['username'])) {
 		FROM _MODULES
 		WHERE NAME = 'Tables'";
 	$db->run_query($query);
-
 	/* Add one more - the Modules Module (and its submenus)...*/
 	modules::install_menu();
 
@@ -256,8 +257,6 @@ if (empty($_POST['username'])) {
 		('_WIDGETS','{NAME}'),
 		('_USERS','{USERNAME}')";
 	$db->run_query($query);
-
-
 
 	if (
 	Users::create_user(

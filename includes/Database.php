@@ -1,6 +1,6 @@
 <?php
 	abstract class Database {
-		
+
 	//	protected $db_connection;
 
 		function __construct() {
@@ -20,10 +20,13 @@
 					call_user_func_array(array($prepared,'bind_param'),$paramVals);
 				}
 				$prepared->execute();
+				if ($prepared->error) {
+					logging::log("error", "Error executing query: {$prepared->error}".PHP_EOL."Query: $query\nParams: " . print_r($params,true));
+					return false;
+				}
+				$this->query_count++;
 				if (method_exists($prepared,'get_result')) {
 					$result = $prepared->get_result();
-                    if ($prepared->affected_rows == -1)
-                        return $prepared->error;
 					if (!is_bool($result)) $result = $result->fetch_all(MYSQLI_ASSOC);
 				} else {
 					/* get_result(), the long way (still need way of returning error)... */
@@ -31,16 +34,16 @@
 					$result = array();		//what we will return
 					$row = array();			//each result row will go in here
 					$cols = array();		//array of references to $row based on $meta
-					
+
 					if ($meta->field_count) {
 						$fields = $meta->fetch_fields();
-						foreach($fields as $field) 
+						foreach($fields as $field)
 						{
 							$var = $field->name;
 							$$var = null;
 							$cols[$var] = &$$var;
 						}
-						
+
 						call_user_func_array(array($prepared,'bind_result'),$cols);
 						$i = 0;
 						while ($prepared->fetch()) {
@@ -52,37 +55,41 @@
 						}
 					}
 				}
-/* 				End crappy way of doing things for 5.2 */				
+/* 				End crappy way of doing things for 5.2 */
 				$prepared->close();
 				return $result;
+			} else {
+				// Error in prepared statement...
+				logging::log("error", "Error preparing query: {$this->db_connection->error}".PHP_EOL."$query");
+				return false;
 			}
 		}
-		
+
 		public function trigger($name,$when,$table,$action) {
 			/* Creates trigger $name on $table for $when events.  $action is the trigger action. */
 			/* $when = {BEFORE|AFTER} {INSERT|UPDATE|DELETE}
-			 * 
+			 *
 			 * */
 			$trigger = "CREATE TRIGGER $name $when ON $table FOR EACH ROW $action";
 			$this->db_connection->query($trigger);
-			
+
 		}
 		public function drop_trigger($name) {
 			/* Drops trigger $name */
 			$drop = "DROP TRIGGER IF EXISTS $name";
 			$this->db_connection->query($trigger);
 		}
-		
+
 		/* Returns the last inserted ID */
 		public function get_inserted_id() {
 			return $this->db_connection->insert_id;
 		}
-		
+
 		/* Returns a list of errors from the last statement run*/
 		public function GetErrors() {
 			return $this->db_connection->error;
 		}
-		
+
 		/* Closes the connection */
 		public function close() {
 			return $this->db_connection->close();
@@ -94,6 +101,6 @@
         } elseif (preg_match('(decimal|double|float)',$data_type)) {
             $param_type = 'd';
         }
-    }
+    	}
 	}
 ?>

@@ -4,8 +4,9 @@ class users extends module {
 	protected $user_info;
 	private $rights;
 	public function __construct($user = array('ID'=>0)) {
-
+		global $local_dir;
 		$this->user_info = $user;
+		if ($_SERVER['SCRIPT_FILENAME'] == $local_dir . 'install.php') return;
 		$this->reload_rights();
 		$this->reload_groups();
 		$this->reload_theme();
@@ -127,9 +128,6 @@ class users extends module {
 
 	public static function current_user_is_guest() {
 		global $s_user;
-	//	echo "current_user_is_guest() called, s_user = " . var_export($s_user,true) ;
-	//	var_export(isset($s_user));
-	//	var_export($s_user->user_info['ID']==0);
 
 		if (!isset($s_user)) return true;
 		if ($s_user->user_info['ID']==0) return true;

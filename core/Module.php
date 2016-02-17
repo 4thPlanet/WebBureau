@@ -179,6 +179,15 @@ class module {
 			);";
 		$db->run_query($query);
 		$query = "
+			CREATE TABLE IF NOT EXISTS _MODULE_SETTINGS (
+				MODULE_ID int,
+				SETTING varchar(64),
+				VALUE varchar(256),
+				PRIMARY KEY (MODULE_ID,SETTING),
+				FOREIGN KEY (MODULE_ID) REFERENCES _MODULES(ID)
+			);";
+		$db->run_query($query);
+		$query = "
 			CREATE TABLE IF NOT EXISTS _MODULES_DEPENDENCIES (
 				ID int AUTO_INCREMENT,
 				MODULE_ID int,
@@ -384,6 +393,34 @@ class module {
 		$result = $db->run_query($query,$params);
 		if (empty($result)) return false;
 		return $result[0]['CLASS_NAME'];
+	}
+
+	public static function get_module_setting($module,$setting) {
+		global $db;
+		$query = "SELECT VALUE FROM _MODULE_SETTINGS WHERE MODULE_ID = ? AND SETTING = ?";
+		$params = array(
+			array("type" => "s", "value" => static::get_module_id($module)),
+			array("type" => "s", "value" => $setting)
+		);
+		$result = $db->run_query($query,$params);
+		if (!empty($result)) return $result[0]['VALUE'];
+		else return null;
+	}
+
+	public static function set_module_setting($module,$setting,$value) {
+		global $db;
+		$module_id = static::get_module_id($module);
+		$query = "
+			INSERT INTO _MODULE_SETTINGS (MODULE_ID,SETTING,VALUE)
+			VALUES (?,?,?)
+			ON DUPLICATE KEY UPDATE VALUE=VALUES(VALUE)
+		";
+		$params = array(
+			array("type" => "i", "value" => $module_id),
+			array("type" => "s", "value" => $setting),
+			array("type" => "s", "value" => $value)
+		);
+		$db->run_query($query,$params);
 	}
 
 	public static function widget($id,$ajax=false,$params=array()) {
