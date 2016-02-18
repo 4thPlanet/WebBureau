@@ -2,6 +2,7 @@
 	abstract class Database {
 
 	//	protected $db_connection;
+		public $query_count = 0;
 
 		function __construct() {
 			$this->db_connection = new mysqli(static::$db_server, static::$db_login, static::$db_pass, static::$db_name);
