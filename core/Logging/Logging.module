@@ -1,0 +1,15 @@
+{
+	"Module" : "Logging",
+	"Description" : "Logging Functions",
+	"Core" : 1,
+	"Filename" : "Logging.php",
+	"Class" : "logging",
+	"Requires" : ["Utilities"],
+	"Extends" : "Utilities",
+	"Helpers" : {
+		"admin" : {
+			"File" : "Logging.admin.php",
+			"Class" : "logging_admin"
+		}
+	}
+}
