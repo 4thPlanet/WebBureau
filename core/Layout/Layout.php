@@ -223,11 +223,17 @@ class layout extends module {
 		}
 	}
 
+	protected static function get_site_title($page_data) {
+		$page_title = static::get_module_setting('Layout', 'Site Title');
+		// TODO: parse through page_data to append to page_data
+		return $page_title;
+	}
+
 	/* $initial will contain any initial scripts, stylesheets, and meta tags that should be loaded on every page. */
 	public static function setup_page($initial = array()) {
 		global $local;
-		$page_title = '';
 		$area_content = static::load_page_data();
+		$page_title = static::get_site_title($area_content);
 		static::force_asset($initial,'css',utilities::get_public_location(__DIR__ . '/style/style.css'));
 ?><!DOCTYPE html>
 <html>

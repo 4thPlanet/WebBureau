@@ -15,7 +15,17 @@ class layout_admin extends layout {
 		}
 	}
 
-	public static function post($args,$request) {}
+	public static function post($args,$request) {
+		if (empty($args))
+		{
+			// blank args
+			if ( isset($_POST['site_title']))
+			{
+				static::set_module_setting('Layout', 'Site Title', $_POST['site_title']);
+				layout::set_message('Successfully saved site title.','success');
+			}
+		}
+	}
 
 	public static function edit_static_html($id=""){
 		global $local,$db;
@@ -112,6 +122,15 @@ INPUT;
 				utilities::get_public_location(__DIR__ . '/style/layout.css')
 			)
 		);
+		$site_title = utilities::make_html_safe(static::get_module_setting('Layout','Site Title'),ENT_QUOTES);
+		$output['html'] .= <<<SETTINGS
+<form id='layout_settings' method='post' action=''>
+	<label for=''>Site Title:</label>
+	<input name='site_title' value='{$site_title}' />
+	<input type='submit' value='Save' />
+</form>
+SETTINGS;
+
 		$output['html'] .= "<p><a href='".static::get_module_url()."static-text'>Click here to edit static text blocks.</a></p>";
 		/* Loop through each area... */
 		$query = "SELECT * FROM _AREAS ORDER BY HTML_ORDER";
