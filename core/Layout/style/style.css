@@ -2,7 +2,7 @@
 img {box-sizing: content-box; }
 
 #container {width: 100%; max-width: 960px; margin: auto; font-family: Arial, Helvetica, sans-serif;}
-#wrapper {float: left; width: 100%; overflow: hidden;}
+#wrapper {float: left; width: 100%; overflow: hidden; min-height: 480px;}
 
 .header {float: left; width: 100%; clear: both;}
 
