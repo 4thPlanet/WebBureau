@@ -395,11 +395,26 @@ class module {
 		return $result[0]['CLASS_NAME'];
 	}
 
+	public static function get_all_module_settings($module) {
+		global $db;
+		$query = "SELECT SETTING,VALUE FROM _MODULE_SETTINGS WHERE MODULE_ID = ?";
+		$params = array (
+			array("type" => "i", "value" => static::get_module_id($module))
+		);
+		$settings = utilities::group_numeric_by_key($db->run_query($query,$params), 'SETTING');
+		if (!empty($settings)) {
+			foreach ($settings as &$setting)
+				$setting = $setting['VALUE'];
+			return $settings;
+		}
+		else return array();
+	}
+
 	public static function get_module_setting($module,$setting) {
 		global $db;
 		$query = "SELECT VALUE FROM _MODULE_SETTINGS WHERE MODULE_ID = ? AND SETTING = ?";
 		$params = array(
-			array("type" => "s", "value" => static::get_module_id($module)),
+			array("type" => "i", "value" => static::get_module_id($module)),
 			array("type" => "s", "value" => $setting)
 		);
 		$result = $db->run_query($query,$params);
