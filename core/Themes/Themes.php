@@ -142,6 +142,7 @@ class themes extends module {
 		global $db,$s_user;
 		$theme = $s_user->get_theme();
 		if (empty($theme)) {
+			/* Needs to be site default theme here!! */
 			layout::setup_page();
 			return;
 		}
@@ -149,7 +150,7 @@ class themes extends module {
 		call_user_func_array(
 			array($theme['CLASS_NAME'],'setup_page'),
 			array(
-				array('css' => $css)
+				array(),array('css' => $css)
 			));
 	}
 }

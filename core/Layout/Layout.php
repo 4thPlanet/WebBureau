@@ -230,7 +230,7 @@ class layout extends module {
 	}
 
 	/* $initial will contain any initial scripts, stylesheets, and meta tags that should be loaded on every page. */
-	public static function setup_page($initial = array()) {
+	public static function setup_page($initial = array(),$last_to_load=array()) {
 		global $local;
 		$area_content = static::load_page_data();
 		$page_title = static::get_site_title($area_content);
@@ -280,7 +280,33 @@ class layout extends module {
 				/* No need to search for duplicate metas as they overwrite themselves already... */
 				echo "<meta name='$key' content='$value' />";
 			}
-		}?>
+		}
+		if ($last_to_load) {
+			foreach($last_to_load as $type => $sources) {
+				foreach($sources as $source) {
+					if (!in_array($source,$loaded_sources[$type])) {
+						switch($type) {
+							case 'css':
+								if (filter_var(utilities::url_protocol_check($source), FILTER_VALIDATE_URL))
+									echo "<link rel='stylesheet' type='text/css' href='$source' />";
+									else
+										echo "<style type='text/css'>$source</style>";
+										break;
+							case 'script':
+								if (filter_var(utilities::url_protocol_check($source), FILTER_VALIDATE_URL))
+									echo "<script type='text/javascript' src='$source'></script>";
+									else
+										echo "<script type='text/javascript'>$source</script>";
+										break;
+							case 'meta':
+								echo "<meta name='".key($sources)."' content='$source' />";
+						}
+						$loaded_sources[$type][] = $source;
+					}
+				}
+			}
+		}
+		?>
 	</head>
 	<body>
 		<div id="container">
