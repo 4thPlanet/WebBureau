@@ -8,7 +8,7 @@ class login_widget extends users implements widget {
 			FROM _MODULES M
 			JOIN _RIGHT_TYPES T ON M.ID = T.MODULE_ID
 			JOIN _RIGHTS R ON T.ID = R.RIGHT_TYPE_ID
-			LEFT JOIN _WIDGETS W ON 
+			LEFT JOIN _WIDGETS W ON
 				M.ID = W.MODULE_ID AND
 				? = W.FILENAME
 			WHERE M.CLASS_NAME = ? AND R.NAME = ? AND W.ID IS NULL";
@@ -22,7 +22,7 @@ class login_widget extends users implements widget {
 		);
 		$db->run_query($query,$params);
 	}
-	
+
 	public static function view() {
 		/* Login widget, displays a login form... */
 		global $local;
@@ -34,14 +34,14 @@ class login_widget extends users implements widget {
 		$output = array('html' => '');
 		$output['html'] = "
 		<p>
-			<form action='{$local}Users/login' method='post'>
+			<form action='".users::get_module_url()."login' method='post'>
 				<label for='username'>Username:</label>
 				<input id='username' name='username' />
 				<label for='password'>Password:</label>
 				<input type='password' id='password' name='password' />
 				<input type='submit' value='Login' />
 			</form>
-			or <a href='{$local}Users/register/' title='Click here to register' />Register</a>
+			or <a href='".users::get_module_url()."register/' title='Click here to register' />Register</a>
 		</p>
 		";
 		return $output;

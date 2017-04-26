@@ -8,7 +8,7 @@ class welcome_widget extends users implements widget {
 			FROM _MODULES M
 			JOIN _RIGHT_TYPES T ON M.ID = T.MODULE_ID
 			JOIN _RIGHTS R ON T.ID = R.RIGHT_TYPE_ID
-			LEFT JOIN _WIDGETS W ON 
+			LEFT JOIN _WIDGETS W ON
 				M.ID = W.MODULE_ID AND
 				? = W.FILENAME
 			WHERE M.CLASS_NAME = ? AND R.NAME = ? AND W.ID IS NULL";
@@ -22,7 +22,7 @@ class welcome_widget extends users implements widget {
 		);
 		$db->run_query($query,$params);
 	}
-	
+
 	public static function view() {
 		/* Welcome widget, displays the text "Welcome, {User}", along with an option to logout */
 		/* Will need to grab $user from the session */
@@ -30,7 +30,7 @@ class welcome_widget extends users implements widget {
 		$user = $s_user->user_info;
 		if (empty($user['DISPLAY_NAME'])) $user['DISPLAY_NAME'] = $user['USERNAME'];
 		return "<p>Welcome, {$user['DISPLAY_NAME']}!</p>
-		<p><a href='{$local}Users/logout'>Logout</a></p>";
+		<p><a href='".users::get_module_url()."logout'>Logout</a></p>";
 	}
 }
 ?>
