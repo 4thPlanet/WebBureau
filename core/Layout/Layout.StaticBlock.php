@@ -26,7 +26,7 @@ class layout_static_block extends layout implements widget {
 			array("type" => "i", "value" => $block_id)
 		);
 		$result = $db->run_query($query,$params);
-		return array('html' => $result[0]['HTML']);
+		return $result ? array('html' => $result[0]['HTML']) : false;
 	}
 
 	public static function setup() {
