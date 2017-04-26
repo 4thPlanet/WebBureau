@@ -42,34 +42,19 @@ class files_admin extends files {
 		global $db,$s_user;
 		if (empty($args) && $s_user->check_right('Files','Files','Upload File')) {
 			/* Upload a new file... */
-			$dir = __DIR__ . "/uploads/";
-			if (!file_exists($dir)) {
-				// Create the uploads directory...
-				if ( !is_writable(__DIR__) || !@mkdir($dir,0755)) {
-					layout::set_message("Unable to create uploads directory.  Please confirm server has write access to " . utilities::get_public_location(__DIR__), "error");
-					return;
-				}
-			}
-
-			$filename = __DIR__ . "/uploads/tmp" . date('YmdHis') . session_id();
-			if (move_uploaded_file($_FILES['the_file']['tmp_name'],$filename)) {
-				$query = "INSERT INTO _FILES (TITLE,DESCRIPTION) VALUES (?,?)";
+			if ($filename = self::upload($_FILES['the_file']['tmp_name'],__DIR__ . '/uploads/' . $_FILES['the_file']['name'])) {
+				// file uploaded correctly, now save it..
+				$query = "INSERT INTO _FILES (FILENAME,TITLE,DESCRIPTION) VALUES (?,?,?)";
 				$params = array(
+					array("type" => "s", "value" => $filename),
 					array("type" => "s", "value" => $request['title']),
 					array("type" => "s", "value" => $request['description']),
 				);
 				$db->run_query($query,$params);
 				$file_id = $db->get_inserted_id();
-				$new_filename = __DIR__ . "/uploads/" . date('YmdHis') . "-$file_id-{$_FILES['the_file']['name']}";
-				rename($filename,$new_filename);
-				$query = "UPDATE _FILES SET FILENAME = ? WHERE ID = ?";
-				$params = array(
-					array("type" => "s", "value" => $new_filename),
-					array("type" => "i", "value" => $file_id),
-				);
-				$db->run_query($query,$params);
+				layout::set_message("Successfully uploaded file.","success");
 			} else {
-				layout::set_message('Unable to upload file.','error');
+				layout::set_message("Unable to upload file.  Please confirm server has write access to " . utilities::get_public_location(__DIR__ . '/uploads'),"error");
 			}
 		} elseif (!empty($args) && $s_user->check_right('Files','Files','Edit File')) {
 			/* Edit a file... */

@@ -109,7 +109,8 @@ class tables_admin extends tables {
 				$meta_table = new Tables('_TABLE_INFO');
 				$meta_columns = $meta_table->get_columns();
 				$meta_columns_data = array(
-					'meta' => $request['meta']
+					'meta' => $request['meta'],
+					'resources' => isset($request['resources']) ? $request['resources'] : array()
 				);
 				foreach($meta_columns as $column) {
 					if (!empty($request["{$column['COLUMN_NAME']}_null"]))
@@ -367,6 +368,8 @@ class tables_admin extends tables {
 		global $local,$db;
 		$output = array("html" => "<h3>$table_name Meta</h3>","css" => array(),'script' => array());
 
+		$table = new tables($table_name);
+
 		array_push(
 			$output['script'],
 			"{$local}script/jquery.min.js",
@@ -440,6 +443,13 @@ class tables_admin extends tables {
 				'keywords' => ''
 			);
 		}
+
+		$resources_in_use = array_fill_keys($table->get_resources(),true);
+		$resources = array(
+			'script' => resources::get_resources_by_type('script'),
+			'style' => resources::get_resources_by_type('style'),
+		);
+
 		$columns = static::get_table_columns($table_name);
 		$sorting_options = "<option value=''>Please Select...</option>";
 		$filter_options = "<option value=''>Please Select...</option>";
@@ -544,6 +554,34 @@ TTT;
 						<td></td>
 					</tr>
 					<tr>
+						<td colspan="3">Table Resources</td>
+					</tr>
+TTT;
+		foreach($resources as $resource_type => $resource_list) {
+			$numResources = count($resource_list);
+			$output['html'] .= <<<TTT
+					<tr>
+						<td rowspan="$numResources">$resource_type</td>
+TTT;
+			$isFirst = true;
+			foreach($resource_list as $resource) {
+				$checked = isset($resources_in_use[$resource['ID']])  ? 'checked="checked"' : '';
+				if (!$isFirst)
+					$output['html'] .= "<tr>";
+				$output['html'] .= <<<TTT
+						<td><input type="checkbox" id="resource_{$resource['ID']}" name="resources[]" {$checked} value="{$resource['ID']}" /></td>
+						<td><label for="resource_{$resource['ID']}">{$resource['NAME']}</label></td>
+					</tr>
+TTT;
+				$isFirst = false;
+			}
+			$output['html'] .= <<<TTT
+					</tr>
+TTT;
+		}
+
+		$output['html'] .= <<<TTT
+					<tr>
 						<td></td>
 						<td></td>
 						<td><input type="submit" value="Save Table Settings" /></td>
@@ -639,7 +677,7 @@ TTT;
 						$joins .= "LEFT JOIN {$table_join['table']} ON {$column['REFERENCED_TABLE_NAME']}.{$col} = {$table_join['table']}.{$table_join['column']} ";
 					}
 				}
-				$pk = static::get_primary_key($table_name);
+				$pk = static::get_primary_key($column['REFERENCED_TABLE_NAME']);
 				$pk = $pk[0]['COLUMN_NAME'];
 				$query = "SELECT {$column['REFERENCED_TABLE_NAME']}.$pk as PK, {$concat['concat']} as DISPLAY
 					FROM {$column['REFERENCED_TABLE_NAME']}

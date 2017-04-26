@@ -4,7 +4,7 @@
 	"Core" : 1,
 	"Filename" : "Tables.php",
 	"Class" : "tables",
-	"Requires" : ["Users","Paging"],
+	"Requires" : ["Users","Paging","Resources"],
 	"Install Order" : 900,
 	"Helpers" : {
 		"admin" : {

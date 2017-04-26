@@ -20,6 +20,36 @@ class files extends module {
 		return true;
 	}
 
+	/**
+	 * Attempts to upload a file.  If the proposed filename is already taken, will append -N to filename (for instance, filename.txt becomes filename-2.txt, filename-3.txt, etc.)
+	 * @param string $tmpFile - The temporary file
+	 * @param string $filename - The proposed new filename.  If an absolute path isn't provided, file will be stored in __DIR__/uploads
+	 * @param bool $overwrite - When true, allows overwriting of files
+	 * @return string - The new location of the filename.
+	 */
+	public static function upload($tmpFile,$filename,$overwrite=false) {
+		$directory = __DIR__;
+		if (strpos($filename,'/') === 0) {
+			$directory = dirname($filename);
+		}
+		$file_name_parts = explode('.',basename($filename));
+		$extension = array_pop($file_name_parts);
+		$base_name = implode('.',$file_name_parts);
+
+		// does $base_name.$extension exist already?
+		if (!$overwrite) {
+			$v=1;
+			while (file_exists($proposed_name = $directory .'/'. $base_name . ($v==1 ? '' : '-'.$v) . '.' . $extension) && $v++) {
+				// noop (while condition does all the work for us)
+			}
+		} else {
+			$proposed_name = $directory .'/' . $base_name . '.' . $extension;
+		}
+
+
+		return move_uploaded_file($tmpFile,$proposed_name) ? $proposed_name : false;
+	}
+
 	public static function post() {}
 	public static function ajax($args,$request) {}
 

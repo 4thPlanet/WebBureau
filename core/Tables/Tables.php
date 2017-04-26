@@ -14,6 +14,7 @@ class tables extends module {
 	protected $columns;
 	protected $PK;
 	protected $id;
+	protected $table_info;
 
 	/* constructor */
 	public function __construct($table,$id = null) {
@@ -22,6 +23,7 @@ class tables extends module {
 			$this->table_name = $table;
 			$this->columns = static::get_table_columns($table);
 			$this->PK = static::get_primary_key($table);
+			$this->table_info = static::getTableInfo();
 			$this->id = $id;
 		}
 	}
@@ -162,6 +164,8 @@ class tables extends module {
 			$table_info->set_id(null);
 		$data['TABLE_NAME'] = $this->table_name;
 		$table_info->save($data);
+		unset($this->table_info);
+		static::getTableInfo();
 		$meta_key_params = array(
 			array("type" => "s", "value" => $this->table_name)
 		);
@@ -188,6 +192,11 @@ class tables extends module {
 				);
 			}
 		}
+
+		if (count($meta_key_params) == 1) {
+			array_push($meta_key_params,array("type" => "s", "value" => ""));
+		}
+
 		/* Finally, remove any metas no longer in use... */
 		$query = "
 			DELETE FROM _TABLE_METAS
@@ -196,8 +205,122 @@ class tables extends module {
 				META_NAME NOT IN (".substr(str_repeat("?,",count($meta_key_params)-1),0,-1).")
 		";
 		$db->run_query($query,$meta_key_params);
+
+		$resource_params = array(
+			array("type" => "s", "value" => $this->table_name)
+		);
+		if (!empty($data['resources'])) {
+			/* Save table resources */
+			$query = "
+				INSERT INTO _TABLE_RESOURCES (TABLE_NAME,RESOURCE_ID)
+				VALUES (?,?)
+				ON DUPLICATE KEY UPDATE RESOURCE_ID = RESOURCE_ID
+			";
+			foreach($data['resources'] as $resource_id) {
+				$params = array (
+					array("type" => "s", "value" => $this->table_name),
+					array("type" => "i", "value" => $resource_id)
+				);
+				$db->run_query($query,$params);
+				array_push($resource_params, array("type" => "i", "value" => $resource_id));
+			}
+		} else {
+			array_push($resource_params, array("type" => "i", "value" => 0));
+		}
+		/* Finally, remove any resources no longer in use... */
+		$query = "
+			DELETE FROM _TABLE_RESOURCES
+			WHERE
+				TABLE_NAME = ? AND
+				RESOURCE_ID NOT IN (".substr(str_repeat("?,",count($resource_params)-1),0,-1).")
+		";
+		$db->run_query($query,$resource_params);
+
 		return true;
 	}
+
+	public function getTableInfo() {
+		if (isset($this->table_info)) return $this->table_info;
+
+		global $db;
+		$query = "
+			SELECT *
+			FROM _TABLE_INFO
+			WHERE TABLE_NAME = ?
+		";
+		$params = array(
+			array("type" => "s", "value" => $this->table_name)
+		);
+		$table_info = $db->run_query($query,$params);
+		if (empty($table_info))
+			$this->table_info = false;
+		else
+			$this->table_info = $table_info[0];
+
+		return $this->table_info;
+	}
+
+	public function get_resources() {
+		global $db;
+
+		$query = "
+			SELECT RESOURCE_ID
+			FROM _TABLE_RESOURCES
+			WHERE TABLE_NAME = ?
+		";
+		$params = array(
+			array("type" => "s", "value" => $this->table_name)
+		);
+		$resources = utilities::group_numeric_by_key($db->run_query($query,$params), 'RESOURCE_ID');
+		return $resources;
+	}
+
+	/**
+	 * Returns the link to the given table record
+	 * @param int|string $id - the primary key
+	 * @return string
+	 */
+	public function getRecordLink($id) {
+		global $db;
+
+		//use $this->PK[0]['COLUMN_NAME']
+
+		if (count($this->PK)!=1)
+			return false;	//no support for tables with multiple PKs
+
+		$table_slug = isset($this->table_info['SLUG']) ? $this->table_info['SLUG'] : $this->table_name;
+		if (!empty($table_slug)) $table_slug .= '/';
+
+		$sql = static::sql_decode_display($this->table_name);
+		$joins = "";
+		if (!empty($sql['joins'])) {
+			foreach($sql['joins'] as $col => $table_join) {
+				$joins .= "LEFT JOIN {$table_join['table']} ON {$this->table_name}.{$col} = {$table_join['table']}.{$table_join['column']} ";
+			}
+		}
+		//array('concat' => $condition, 'params' => $params, 'joins' => $joins);
+		$query = "
+			SELECT
+				{$sql['concat']} as record_slug
+			FROM
+				{$this->table_name}
+			{$joins}
+			WHERE
+				{$this->PK[0]['COLUMN_NAME']} = ?
+		";
+		$params = $sql['params'];
+		array_push($params,array("type" => "s", "value" => $id));
+		$result = $db->run_query($query,$params);
+		$slug = null;
+		if (!empty($result)) {
+			$slug = $result[0]['record_slug'];
+		}
+		if (is_null($slug)) $slug = $id;
+
+		$url = static::get_module_url() . $table_slug . utilities::make_url_safe($slug);
+		return $url;
+	}
+
 	public function get_columns() {
 		return $this->columns;
 	}
@@ -469,6 +592,14 @@ class tables extends module {
 				PRIMARY KEY (TABLE_NAME,META_NAME)
 			) ENGINE=INNODB;";
 		$db->run_query($query);
+		$query = "
+			CREATE TABLE IF NOT EXISTS _TABLE_RESOURCES (
+				TABLE_NAME varchar(100),
+				RESOURCE_ID int,
+				PRIMARY KEY (TABLE_NAME,RESOURCE_ID),
+				FOREIGN KEY (RESOURCE_ID) REFERENCES _RESOURCES(ID)
+			);
+		";
 		return true;
 	}
 
@@ -762,6 +893,10 @@ class tables extends module {
 			return;
 		}
 
+		$the_table = new tables($table);
+		$resources = resources::get_resources_as_output_params($the_table->get_resources());
+		$output = array_merge_recursive($output,$resources);
+
 		$query = "SELECT *
 			FROM _TABLE_INFO
 			WHERE TABLE_NAME = ?";
@@ -815,6 +950,7 @@ class tables extends module {
 			return;
 		} else {
 			$table_info['SLUG'] = "$table/";
+			$table_info['LINK_TO_ALL_TABLES'] = null;
 		}
 
 		if (empty($table_info['PREVIEW_DISPLAY'])) {
@@ -1081,28 +1217,42 @@ class tables extends module {
 			}
 		}
 
-		$display = utilities::replace_formatted_string($display,"{","}",$data);
-
 		// search for inline functions - @<function_name> [<param>] [[<param>]...]@
-		if (preg_match_all('/@(?<FUNCTION_NAME>\w[\w\d]+)(?<PARAM_LIST>(\s+[^\s]+)*)@/',$display,$function_calls,PREG_SET_ORDER)) {
+
+		if (preg_match_all('/@(?<FUNCTION_NAME>\w[\w\d]+)(?<PARAM_LIST>(\s+[^\s]+)*)@/U',$display,$function_calls,PREG_SET_ORDER)) {
 			$inline_functions = static::inline_functions();
 			foreach($function_calls as $fn_data) {
 				if (empty($inline_functions[$fn_data['FUNCTION_NAME']])) continue;
-				$params = preg_split('/\s/',trim($fn_data['PARAM_LIST']));
-				foreach($params as $param)
-				{
-					$param = utilities::replace_formatted_string($param,"{","}",$data);
+
+				preg_match_all('/"([\w\d\s]+)"|([\S]+)/',trim($fn_data['PARAM_LIST']),$param_list);
+
+				$params = $param_list[0];
+				foreach($params as &$param) {
+					$param = trim($param,'"');
+					$param = utilities::replace_formatted_string($param, "{", "}", $data);
 				}
-				$display = str_replace($function_calls[0],call_user_func_array($inline_functions[$fn_data['FUNCTION_NAME']],$params),$display);
+
+
+				$display = str_replace($fn_data[0],call_user_func_array($inline_functions[$fn_data['FUNCTION_NAME']],$params),$display);
 			}
 		}
+
+		$display = utilities::replace_formatted_string($display,"{","}",$data);
 
 		return $display;
 	}
 
 	protected static function inline_functions() {
 		return array(
-			'toUrl' => function($val) {return utilities::get_public_location($val);},
+			'toUrl' => function($val) { return utilities::get_public_location($val);},
+			'tableRecordUrl' => function($table,$id) {
+				$table = new tables($table);
+				return $table->getRecordLink($id);
+			},
+			'tableRecordLink' => function($table,$id,$text=false) {
+				$table = new tables($table);
+				return "<a href='".$table->getRecordLink($id)."'>".($text?$text:$id)."</a>";
+			}
 		);
 	}
 
