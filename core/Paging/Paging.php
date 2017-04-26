@@ -150,7 +150,7 @@ class paging extends module {
 	}
 
 	public function next_page() {
-		$this->current_page = min($this->current_page + 1, $this->get_page_count());
+		$this->current_page = max(1,min($this->current_page + 1, $this->get_page_count()));
 		return $this;
 	}
 
