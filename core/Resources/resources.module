@@ -1,0 +1,15 @@
+{
+	"Module" : "Resources",
+	"Description" : "Resource management",
+	"Core" : 1,
+	"Filename" : "Resources.php",
+	"Class" : "resources",
+	"Requires" : ["Files","Utilities"],
+	"Extends" : "Utilities",
+	"Helpers": {
+		"admin" : {
+			"File" : "Resources.admin.php",
+			"Class" : "resources_admin"
+		}
+	}
+}
