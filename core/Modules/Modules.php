@@ -13,42 +13,63 @@ class modules extends module {
 		$user = users::get_session_user();
 		if (!$user->check_right('Modules','Administer','Administer Modules')) return false;
 		if (empty($args)) {
-			$zip = new ZipArchive;
-			$success = true;
-			if ($zip->open($_FILES['module_upload']['tmp_name']) === TRUE) {
-				$folder_name = substr($_FILES['module_upload']['name'],0,strrpos($_FILES['module_upload']['name'],"."));
-				$location = "{$local_dir}custom/$folder_name";
-				$zip->extractTo($location);
-				$zip->close();
-				/* Search for .module file... */
-				$info_files = utilities::recursive_glob('*.module',$location);
-				foreach($info_files as $info_file) {
-					$module_info = json_decode(file_get_contents($info_file),true);
-					$module_info['Directory'] = dirname($info_file) . "/";
-					/* Confirm no dependencies... */
-					if (!empty($module_info['Requires'])) {
-						$query = "
+			if (!empty($request['modules_to_install'])) {
+				foreach($request['modules_to_install'] as $module_info_file) {
+					// read the file..
+					$module_info = json_decode(file_get_contents($module_info_file),true);
+					$module_info['Directory'] = dirname($module_info_file) . "/" ;
+					if (!empty($module_info['Extends'])) {
+						// Get Parent Module ID...
+						$module_info['ModuleParentID'] = module::get_module_id($module_info['Extends']);
+						if ($module_info['ModuleParentID'] === false) {
+							Layout::set_message("Unable to install module [{$module_info['Module']}] - install module [{$module_info['Extends']}] first.","error");
+							continue;
+						}
+					}
+					if (!self::install_module($module_info)) {
+						Layout::set_message("Unable to install module [{$module_info['Module']}].","error");
+					} else {
+						Layout::set_message("Successfully installed module [{$module_info['Module']}].","success");
+					}
+				}
+			} else {
+				$zip = new ZipArchive;
+				$success = true;
+				if ($zip->open($_FILES['module_upload']['tmp_name']) === TRUE) {
+					$folder_name = substr($_FILES['module_upload']['name'],0,strrpos($_FILES['module_upload']['name'],"."));
+					$location = "{$local_dir}custom/$folder_name";
+					$zip->extractTo($location);
+					$zip->close();
+					/* Search for .module file... */
+					$info_files = utilities::recursive_glob('*.module',$location);
+					foreach($info_files as $info_file) {
+						$module_info = json_decode(file_get_contents($info_file),true);
+						$module_info['Directory'] = dirname($info_file) . "/";
+						/* Confirm no dependencies... */
+						if (!empty($module_info['Requires'])) {
+							$query = "
 							SELECT COUNT(*) as num_modules
 							FROM _MODULES
 							WHERE NAME IN (".substr(str_repeat("?,",count($module_info['Requires'])),0,-1).")";
-						$params = array();
-						foreach($module_info['Requires'] as $required)
-							array_push($params, array("type" => "s", "value" => $required));
-						$result = $db->run_query($query,$params);
-						if ($result[0]['num_modules'] != count($module_info['Requires'])) {
-							layout::set_message("Unable to install module {$module_info['Module']}.  Please insure all required modules are installed first.");
-							continue;
+							$params = array();
+							foreach($module_info['Requires'] as $required)
+								array_push($params, array("type" => "s", "value" => $required));
+								$result = $db->run_query($query,$params);
+								if ($result[0]['num_modules'] != count($module_info['Requires'])) {
+									layout::set_message("Unable to install module {$module_info['Module']}.  Please insure all required modules are installed first.");
+									continue;
+								}
+								if ($module_info['Extends']) {
+									$module_info['ModuleParentID'] = module::get_module_id($module_info['Extends']);
+								}
 						}
-						if ($module_info['Extends']) {
-							$module_info['ModuleParentID'] = module::get_module_id($module_info['Extends']);
-						}
+						$success = module::install_module($module_info);
+						if ($success) layout::set_message('New module installed.','info');
+						else layout::set_message('Unable to install module.','error');
 					}
-					$success = module::install_module($module_info);
-					if ($success) layout::set_message('New module installed.','info');
-					else layout::set_message('Unable to install module.','error');
+				} else {
+					layout::set_message('Unable to install read .zip file to install class.','error');
 				}
-			} else {
-				layout::set_message('Unable to install read .zip file to install class.','error');
 			}
 		} else {
 			$module = array_shift($args);
@@ -85,15 +106,15 @@ class modules extends module {
 	private static function view_main() {
 		global $db,$local;
 		$output = array(
-			'html' => '<h3>Module Administration</h3>',
+			'html' => '<h1>Module Administration</h1>',
 			'script' => array(),
 			'css' => array()
 		);
 		$user = users::get_session_user();
 		/* Install Module */
 		$output['html'] .= "
-			<form action='' method='post' enctype='multipart/form-data'>
-				<h4>Install New Module</h4>
+			<h2>Install New Module</h2>
+				<form action='' method='post' enctype='multipart/form-data'>
 				<p>
 					Select a file to upload containing the module to be uploaded (only .zip files supported presently):<br />
 					<input type='file' name='module_upload' /><br /><br />
@@ -130,7 +151,7 @@ class modules extends module {
 				"var groups = ".json_encode($groups,true).";");
 			$output['css'][] = "{$local}style/jquery-ui.css";
 			$output['html'] .= "
-			<h4>Install Missing Rights</h4>
+			<h2>Install Missing Rights</h2>
 			<p>The following right(s) are not defined in the system, but should be.  Please assign the following rights:</p>
 			<form class='assign-right'>
 			";
@@ -146,6 +167,38 @@ class modules extends module {
 			}
 			$output['html'] .= "</form>";
 		}
+
+		// search for uninstalled modules...
+		$module_files = utilities::recursive_glob('*.module');
+		/* For each .module file, convert to object from JSON */
+		$every_module = array();
+		$idx=0;
+		foreach($module_files as $module_info_file) {
+			$every_module[$idx] = json_decode(file_get_contents($module_info_file),true);
+			if (is_null($every_module[$idx])) die("Invalid .module file.  Please see $module_info_file and fix.");
+
+			// check if installed..
+			if (modules::get_module_id($every_module[$idx]['Module']) !== false) {
+				unset($every_module[$idx]);
+			} else {
+				$every_module[$idx]['.module'] = $module_info_file;
+				// check if any dependencies...
+				$idx++;
+			}
+
+		}
+
+		if ($every_module) {
+			$output['html'] .= "<h2>Install Loaded Module</h2><form method='post'><ul style='list-style-type: none;'>";
+			foreach($every_module as $module_info)
+			{
+				$output['html'] .= <<<MODULE
+	<li><label><input type="checkbox" name="modules_to_install[]" value="{$module_info['.module']}" /> {$module_info['Module']}</label></li>
+MODULE;
+			}
+			$output['html'] .= "</ul><input type='submit' value='Install Module(s)' /></form>";
+		}
+
 		return $output;
 	}
 
@@ -164,7 +217,6 @@ class modules extends module {
 		if (empty($args)) {
 			return static::view_main();
 		}
-
 		else {
 			$module = array_shift($args);
 			/* Confirm User has rights for this... */
@@ -264,6 +316,13 @@ class modules extends module {
 				'default_groups' => array('Admin')
 			);
 		return $required;
+	}
+
+	public static function get_all_modules()
+	{
+		global $db;
+		$query = "SELECT ID,NAME FROM _MODULES";
+		return utilities::group_numeric_by_key($db->run_query($query), 'ID');
 	}
 
 	/* Returns a multi-dimensional array of menu options for this module (including sub-menus) */

@@ -1,0 +1,15 @@
+{
+	"Module" : "Caching",
+	"Description" : "Defines Site Caching",
+	"Core" : 1,
+	"Filename" : "Caching.php",
+	"Class" : "caching",
+	"Requires" : ["Utilities"],
+	"Extends" : "Utilities",
+	"Helpers" : {
+		"admin" : {
+			"File" : "Caching.admin.php",
+			"Class" : "caching_admin"
+		}
+	}
+}

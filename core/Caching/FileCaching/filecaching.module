@@ -1,0 +1,12 @@
+{
+	"Module" : "FileCaching",
+	"Description" : "Site Caching via Files",
+	"Core" : 1,
+	"Filename" : "FileCaching.php",
+	"Class" : "filecaching",
+	"Requires" : ["Caching"],
+	"Extends" : "Caching",
+	"Helpers" : {
+		
+	}
+}

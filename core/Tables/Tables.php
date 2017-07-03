@@ -332,6 +332,12 @@ class tables extends module {
 	public static function is_table($table) {
 		global $db;
 		/* Returns true if table is a table... */
+		$cache = caching::get_site_cacher('Tables');
+		$cache_key = __FUNCTION__ .'_'. serialize(func_get_args());
+		if ( !is_null($cached_response = $cache->get($cache_key))) {
+			return $cached_response;
+		}
+
 		$query = "
 			SELECT CASE COUNT(*) WHEN 0 THEN 0 ELSE 1 END AS is_table
 			FROM INFORMATION_SCHEMA.TABLES T
@@ -341,12 +347,20 @@ class tables extends module {
 			array("type" => "s", "value" => $table)
 		);
 		$result = $db->run_query($query,$params);
-		return $result[0]['is_table']==1;
+		$ret = $result[0]['is_table']==1;
+		$cache->set($cache_key,$ret);
+
+		return $ret;
 	}
 
 	public static function table_has_column($table,$column)
 	{
 		global $db;
+		$cache = caching::get_site_cacher('Tables');
+		$cache_key = __FUNCTION__ .'_'. serialize(func_get_args());
+		if (!is_null($cached_response = $cache->get($cache_key))) {
+			return $cached_response;
+		}
 		$query = "
 			SELECT CASE COUNT(*) WHEN 0 THEN 0 ELSE 1 END AS has_column
 			FROM INFORMATION_SCHEMA.COLUMNS C
@@ -358,20 +372,29 @@ class tables extends module {
 			array("type" => "s", "value" => $column)
 		);
 		$result = $db->run_query($query,$params);
-		return $result[0]['has_column']==1;
+		$ret = $result[0]['has_column']==1;
+		$cache->set($cache_key,$ret);
+		return $ret;
 	}
 
 	/* Returns all tables Session User has rights to view... */
 	public static function get_users_viewable_tables() {
 		global $db,$s_user;
-		$query = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ?";
-		$params = array(
-			array("type" => "s", "value" => $db->get_db_name())
-		);
-		$tables = utilities::group_numeric_by_key($db->run_query($query,$params),'TABLE_NAME');
+		$cache = caching::get_site_cacher('Tables');
+		$cache_key = __FUNCTION__ .'_'. serialize(func_get_args());
+		if (is_null($tables = $cache->get($cache_key))) {
+			$query = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ?";
+			$params = array(
+				array("type" => "s", "value" => $db->get_db_name())
+			);
+			$tables = utilities::group_numeric_by_key($db->run_query($query,$params),'TABLE_NAME');
+			$cache->set($cache_key,$tables);
+		}
+
 		foreach($tables as $idx=>$table) {
 			if (!$s_user->check_right('Tables',$table,'View')) unset($tables[$idx]);
 		}
+
 		return $tables;
 	}
 
@@ -380,6 +403,13 @@ class tables extends module {
 	/* Returns a multi-dimensional array of menu options for this module (including sub-menus) */
 	public static function menu() {
 		global $db;
+
+		$cache = caching::get_site_cacher('Tables');
+		$cache_key = __FUNCTION__ .'_'. serialize(func_get_args());
+		if (!is_null($cached_response = $cache->get($cache_key))) {
+			return $cached_response;
+		}
+
 		/* Start with basic menu - only one option (Table) */
 		$menu = array(
 			'Tables' => array(
@@ -476,12 +506,19 @@ class tables extends module {
 			}
 		}
 
+		$cache->set($cache_key,$menu);
 		return $menu;
 	}
 
 	public static function decode_menu($args) {
 		/* Decodes the menu args and returns the appropriate HREF */
 		global $db;
+		$cache = caching::get_site_cacher('Tables');
+		$cache_key = __FUNCTION__ .'_'. serialize(func_get_args());
+		if (!is_null($cached_response = $cache->get($cache_key))) {
+			return $cached_response;
+		}
+
 		$url = static::get_module_url();
 		if (empty($args)) return $url;
 		/* Get the Table */
@@ -499,7 +536,10 @@ class tables extends module {
 
 
 		$url.= "$table";
-		if (empty($args)) return $url;
+		if (empty($args)) {
+			$cache->set($cache_key,$url);
+			return $url;
+		}
 
 		if (count($args) > 1) {
 			$arg = array_shift($args);
@@ -524,13 +564,22 @@ class tables extends module {
 						$params = array_merge($fk_sql['params'],array(array("type" => "s", "value" => $val)));
 						$display = $db->run_query($query,$params);
 
-						if (empty($display)) return $url;
+						if (empty($display)) {
+							$cache->set($cache_key,$url);
+							return $url;
+						}
 						if (!empty($table)) $url .= "/";
-						return $url . utilities::make_url_safe($display[0]['DISPLAY'],ENT_QUOTES) ;
+
+						$url = $url . utilities::make_url_safe($display[0]['DISPLAY'],ENT_QUOTES) ;
+						$cache->set($cache_key,$url);
+						return $url;
 					} else {
 						// just append $val to URL...
 						if (!empty($table)) $url .= "/";
-						return $url . utilities::make_url_safe($val,ENT_QUOTES) ;
+
+						$url .= utilities::make_url_safe($val,ENT_QUOTES);
+						$cache->set($cache_key,$url);
+						return $url;
 					}
 			}
 		}
@@ -557,10 +606,15 @@ class tables extends module {
 			}
 			$query .= implode(" AND ", $clause);
 			$display = $db->run_query($query,$params);
-			if (empty($display)) return $url;
+			if (empty($display)) {
+				$cache->set($cache_key,$url);
+				return $url;
+			}
 
 			if (!empty($table)) $url .= "/";
-			return $url . utilities::make_url_safe($display[0]['DISPLAY'],ENT_QUOTES) ;
+			$url .= utilities::make_url_safe($display[0]['DISPLAY'],ENT_QUOTES) ;
+			$cache->set($cache_key,$url);
+			return $url;
 		}
 	}
 
@@ -572,8 +626,8 @@ class tables extends module {
 				SLUG varchar(100) UNIQUE,
 				SHORT_DISPLAY varchar(50),
 				PREVIEW_DISPLAY varchar(500),
-				PREVIEW_DISPLAY_BEFORE varchar(500),
-				PREVIEW_DISPLAY_AFTER varchar(500),
+				PREVIEW_DISPLAY_BEFORE text,
+				PREVIEW_DISPLAY_AFTER text,
 				FULL_DISPLAY text,
 				LINK_BACK_TO_TABLE bit,
 				LINK_TO_ALL_TABLES bit,
@@ -605,6 +659,11 @@ class tables extends module {
 
 	public static function required_rights() {
 		global $db;
+		$cache = caching::get_site_cacher('Tables');
+		$cache_key = __FUNCTION__ .'_'. serialize(func_get_args());
+		if (!is_null($cached_response = $cache->get($cache_key))) {
+			return $cached_response;
+		}
 		$required = array(
 			'Tables' => array(
 				'Table Actions' => array(
@@ -646,11 +705,17 @@ class tables extends module {
 					'Registered User'
 				);
 		}
+		$cache->set($cache_key,$required);
 		return $required;
 	}
 
 	public static function get_primary_key($table_name) {
 		global $db;
+		$cache = caching::get_site_cacher('Tables');
+		$cache_key = __FUNCTION__ .'_'. serialize(func_get_args());
+		if (!is_null($cached_response = $cache->get($cache_key))) {
+			return $cached_response;
+		}
 		/* Returns the primary key of the table... */
 		$query = "SELECT COLUMN_NAME
 		FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
@@ -662,12 +727,19 @@ class tables extends module {
 			array("type" => "s", "value" => $db->get_db_name()),
 			array("type" => "s", "value" => $table_name)
 		);
-		return $db->run_query($query,$params);
+		$result = $db->run_query($query,$params);
+		$cache->set($cache_key,$result);
+		return $result;
 	}
 
 	public static function get_table_columns($table_name, $column_name=null) {
 		/* Returns the columns of a given table, and which tables they reference (if applicable).  If $column_name is not null, only grab that column */
 		global $db;
+		$cache = caching::get_site_cacher('Tables');
+		$cache_key = __FUNCTION__ .'_'. serialize(func_get_args());
+		if (!is_null($cached_response = $cache->get($cache_key))) {
+			return $cached_response;
+		}
 		$query = "SELECT C.COLUMN_NAME, C.DATA_TYPE, C.CHARACTER_MAXIMUM_LENGTH,
 			CASE WHEN C.EXTRA RLIKE 'auto_increment' THEN 1 ELSE 0 END as IS_AUTO_INCREMENT,
 			CASE C.IS_NULLABLE WHEN 'YES' THEN 1 ELSE 0 END AS IS_NULLABLE,
@@ -685,7 +757,10 @@ class tables extends module {
 			array("type" => "s", "value" => $column_name),
 			array("type" => "s", "value" => $column_name)
 		);
-		return $db->run_query($query,$params);
+
+		$result = $db->run_query($query,$params);
+		$cache->set($cache_key,$result);
+		return $result;
 	}
 
 
