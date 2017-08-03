@@ -179,9 +179,11 @@ class utilities extends module {
 	  ** $password - Password.
 	  ** $algo (optional) - Algorithm to be used.  Defaults to sha256.
 	  */
-	 public static function user_password_hash($username,$password,$algo='sha256') {
+	 public static function user_password_hash($user_salt,$password,$algo='sha256') {
 
-	 	return hash($algo,substr($username,-4).$password);
+	 	// salt password with site salt...
+	 	$password = $user_salt . $password . SITE_SALT;
+	 	return hash($algo,$password);
 	 }
 
 	 /*
@@ -377,7 +379,7 @@ class utilities extends module {
  		$acc_length = strlen($string);
 
  		for ($i=0; $i<$length; $i++) {
- 			$rnd .= $string[mt_rand(0,$acc_length)];
+ 			$rnd .= $string[mt_rand(0,$acc_length-1)];
  		}
  		return $rnd;
  	}

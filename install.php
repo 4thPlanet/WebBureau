@@ -130,10 +130,22 @@ if (empty($_POST['username'])) {
 		$db->query("CREATE USER '".str_replace("'","\'",$_POST['db_user'])."'@'localhost' IDENTIFIED BY '".str_replace("'","\'",$_POST['db_password'])."'");
 		$db->query("GRANT ALL privileges ON ".str_replace("'","\'",$_POST['db_name']).".* TO '".str_replace("'","\'",$_POST['db_user'])."'@'localhost'");
 	}
+
+	// generate site salt - since our classes won't entirely work until installation is finished, copy/paste from utilities::create_random_string:
+	$site_salt = "";
+	for($i=0;$i<128;$i++) {
+		$c = chr(rand(33,126));
+		if ($c == "'") $c = '\\' . $c;
+		$site_salt .= $c;
+	}
+
 	/* Now create ClientData.php */
 	$clientData = '
 <'.'?php
 	require_once(__DIR__ . "/Database.php");
+
+	define(\'SITE_SALT\',\''.$site_salt.'\');
+
 	class clientData extends Database {
         protected static $db_pass = "'.str_replace('"','\"',$_POST['db_password']).'";
         protected static $db_server = "'.str_replace('"','\"',$_POST['db_location']).'";
@@ -148,6 +160,7 @@ if (empty($_POST['username'])) {
 	if (!@file_put_contents('includes/ClientData.php',$clientData)) {
 		die('Unable to write to ClientData.php.  Check write permissions. Current User = ' . exec('whoami'));
 	}
+
 
 	global $db,$local_dir;
 	$local_dir = __DIR__ . "/";

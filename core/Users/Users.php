@@ -148,25 +148,29 @@ class users extends module {
 		if (empty($_POST['username']) || empty($_POST['password'])) {
 			return;
 		} else {
-			$username = $_POST['username'];
-			$password = utilities::user_password_hash($username,$_POST['password']);
+			// get data for username..
 			$query = "SELECT *
 			FROM _USERS
-			WHERE USERNAME = ? AND PASSWORD = ?";
+			WHERE USERNAME = ?";
 			$params = array(
-				array("type" => "s", "value" => $username),
-				array("type" => "s", "value" => $password)
+				array("type" => "s", "value" => $_POST['username'])
 			);
 			$user = $db->run_query($query,$params);
-			if (empty($user)) {
-				/* Redirect to login page with error message "Invalid Login" */
-				layout::set_message("Invalid Login.", "error");
-				return;
-			} else {
+			if ($user)
 				$user = $user[0];
+			else
+				$user = array('USER_SALT' => null,'PASSWORD' => null );
+
+			// hash the supplied password, check if it matches $user...
+			if (utilities::user_password_hash($user['USER_SALT'], $_POST['password']) === $user['PASSWORD']) {
 				$_SESSION['users']['user'] = new users($user);
 				header("Location: {$_SERVER['HTTP_REFERER']}");
 				exit();
+				return;
+			} else {
+				// invalid login
+				/* Redirect to login page with error message "Invalid Login" */
+				layout::set_message("Invalid Login.", "error");
 				return;
 			}
 		}
@@ -549,7 +553,7 @@ class users extends module {
 		$user = static::get_session_user();
 		$error = false;
 		/* Confirm "old" password is correct */
-		if (utilities::user_password_hash($username,$data['old'])!==$user->get_hashed_password()) {
+		if (utilities::user_password_hash($user->user_info['USER_SALT'], $data['old']) !== $user->user_info['PASSWORD']) {
 			layout::set_message('Unable to confirm current password.','error');
 			$error = true;
 		}
@@ -564,13 +568,16 @@ class users extends module {
 		}
 
 		/* Update Password */
-		$query = "UPDATE _USERS SET PASSWORD = ? WHERE USERNAME = ?";
+		$new_user_salt = utilities::create_random_string(64);
+		$new_hash = utilities::user_password_hash($new_user_salt,$data['new']);
+		$query = "UPDATE _USERS SET USER_SALT = ?, PASSWORD = ? WHERE USERNAME = ?";
 		$params = array(
-			array("type" => "s", "value" => utilities::user_password_hash($username,$data['new'])),
+			array("type" => "s", "value" => $new_user_salt),
+			array("type" => "s", "value" => $new_hash),
 			array("type" => "s", "value" => $username)
 		);
 		$db->run_query($query,$params);
-		$user->refresh_hashed_password(utilities::user_password_hash($username,$data['new']));
+		$user->refresh_hashed_password($new_hash);
 
 		layout::set_message("Password has been updated.","info");
 		header("Location: " . static::get_module_url() . "$username/edit");
@@ -601,15 +608,19 @@ class users extends module {
 		if (!array_key_exists('email',$data)) $data['email'] = null;
 		if (!array_key_exists('display',$data)) $data['display'] = null;
 
-		$query = "INSERT INTO _USERS (USERNAME,PASSWORD,EMAIL,DISPLAY_NAME)
-		VALUES (?,?,?,?)";
+		$user_salt = utilities::create_random_string(64);
+
+		$query = "INSERT INTO _USERS (USERNAME,USER_SALT,PASSWORD,EMAIL,DISPLAY_NAME)
+		VALUES (?,?,?,?,?)";
 		$params = array(
 			array("type" => "s", "value" => $data['username']),
-			array("type" => "s", "value" => utilities::user_password_hash($data['username'],$data['password'])),
+			array("type" => "s", "value" => $user_salt),
+			array("type" => "s", "value" => utilities::user_password_hash($user_salt,$data['password'])),
 			array("type" => "s", "value" => $data['email']),
 			array("type" => "s", "value" => $data['display']),
 		);
 		$db->run_query($query,$params);
+
 		$userID = $db->get_inserted_id();
 		/* Add user to any groups present in $data['groups'] */
 		$data['groups'][] = 'Registered User';
@@ -716,6 +727,7 @@ Regards,
 		$query[] = "CREATE TABLE IF NOT EXISTS _USERS (
 			ID int AUTO_INCREMENT,
 			USERNAME varchar(20),
+			USER_SALT char(64),
 			PASSWORD char(64),
 			EMAIL varchar(255),
 			DISPLAY_NAME varchar(100),
