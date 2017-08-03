@@ -24,6 +24,11 @@ class layout_admin extends layout {
 				static::set_module_setting('Layout', 'Site Title', $_POST['site_title']);
 				layout::set_message('Successfully saved site title.','success');
 			}
+			if (isset($_POST['favicon']))
+			{
+				static::set_module_setting('Layout', 'favicon', $_POST['favicon']);
+				layout::set_message('Successfully saved site favicon.','success');
+			}
 		}
 	}
 
@@ -123,10 +128,21 @@ INPUT;
 			)
 		);
 		$site_title = utilities::make_html_safe(static::get_module_setting('Layout','Site Title'),ENT_QUOTES);
+		$all_icons = resources::get_resources_by_type('icon');
+
+		$icon_options = "";
+		foreach($all_icons as $icon) {
+			$icon_options .= "<option value='{$icon['ID']}'>{$icon['NAME']}</option>";
+		}
+
 		$output['html'] .= <<<SETTINGS
 <form id='layout_settings' method='post' action=''>
-	<label for=''>Site Title:</label>
-	<input name='site_title' value='{$site_title}' />
+	<label for='site_title'>Site Title:</label>
+	<input id='site_title' name='site_title' value='{$site_title}' />
+	<label for='favicon'>Favicon:</label>
+	<select id='favicon' name='favicon'>
+		$icon_options
+	</select>
 	<input type='submit' value='Save' />
 </form>
 SETTINGS;

@@ -235,28 +235,34 @@ class layout extends module {
 		$area_content = static::load_page_data();
 		$page_title = static::get_site_title($area_content);
 		static::force_asset($initial,'css',utilities::get_public_location(__DIR__ . '/style/style.css'));
+		$icon_resource = new resources(static::get_module_setting('Layout', 'favicon'));
+
 ?><!DOCTYPE html>
 <html>
 	<head>
 		<title><?echo $page_title?></title>
+		<base href="<?php echo $local;?>" />
+		<?php if ($icon_resource->filename){?>
+		<link rel="shortcut icon" href="<?php echo utilities::get_public_location($icon_resource->filename)?>" />
 		<?php
-			/* Go through scripts (if any) */
-			if (!empty($initial['script'])) {
-				foreach($initial['script'] as $script) {
-					if (filter_var(utilities::url_protocol_check($script),FILTER_VALIDATE_URL))
-						echo "<script type='text/Javascript' src='$script'></script>";
-					else echo "<script type='text/Javascript'>$script</script>";
-				}
-			} else $initial['script'] = array();
-			/* Go through CSS */
-			foreach($initial['css'] as $css) {
-				if (filter_var(utilities::url_protocol_check($css), FILTER_VALIDATE_URL))
-					echo "<link rel='stylesheet' type='text/css' href='$css' />";
-				else echo "<style type='text/css'>$css</style>";
+		}
+		/* Go through scripts (if any) */
+		if (!empty($initial['script'])) {
+			foreach($initial['script'] as $script) {
+				if (filter_var(utilities::url_protocol_check($script),FILTER_VALIDATE_URL))
+					echo "<script type='text/Javascript' src='$script'></script>";
+				else echo "<script type='text/Javascript'>$script</script>";
 			}
-			/* Go through meta (if any) */
-			if (!empty($initial['meta'])) foreach($initial['meta'] as $key=>$value)
-				echo "<meta name='$key' content='$value' />";
+		} else $initial['script'] = array();
+		/* Go through CSS */
+		foreach($initial['css'] as $css) {
+			if (filter_var(utilities::url_protocol_check($css), FILTER_VALIDATE_URL))
+				echo "<link rel='stylesheet' type='text/css' href='$css' />";
+			else echo "<style type='text/css'>$css</style>";
+		}
+		/* Go through meta (if any) */
+		if (!empty($initial['meta'])) foreach($initial['meta'] as $key=>$value)
+			echo "<meta name='$key' content='$value' />";
 		$loaded_sources = $initial;
 		foreach($area_content as $area=>$content) {
 			/* Load any CSS from widgets */
