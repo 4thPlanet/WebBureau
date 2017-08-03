@@ -114,7 +114,7 @@ if (empty($_POST['username'])) {
 						<input type="submit" value="Install system!" />
 					</td>
 				</tr>
-			</table>
+		</table>
 		</form>
 	</body>
 </html>
@@ -164,7 +164,6 @@ if (empty($_POST['username'])) {
 
 	global $db,$local_dir;
 	$local_dir = __DIR__ . "/";
-
 	require_once('includes/ClientData.php');
 	require_once('core/Utilities/Utilities.php');
 
@@ -248,6 +247,20 @@ if (empty($_POST['username'])) {
 			users::assign_rights(array($new_right => array($admin)),true);
 		}
 	}
+
+	/* Add the following resources: */
+	resources::addResource("style", "jQuery-UI CSS", $local_dir . "style/jquery-ui.css");
+	resources::addResource("style", "jQuery Sortable CSS", $local_dir . "style/jquery-sortable.css");
+	resources::addResource("style", "jQuery Timepicker CSS", $local_dir . "style/timepicker.css");
+
+	resources::addResource("script", "jQuery", $local_dir . "script/jquery.min.js");
+	resources::addResource("script", "jQuery UI", $local_dir . "script/jquery-ui.min.js");
+	resources::addResource("script", "jQuery Sortable", $local_dir . "script/jquery-sortable.js");
+	resources::addResource("script", "jQuery Timepicker", $local_dir . "script/jquery-ui-timepicker-addon.js");
+
+	resources::addResource("image", "Delete Icon", $local_dir . "images/icon-delete.png");
+	resources::addResource("image", "Edit Icon", $local_dir . "images/icon-edit.png");
+	resources::addResource("image", "Filter Icon", $local_dir . "images/icon-filter.png");
 
 	/* Just so there's something there, menu is the Tables module... */
 	$query = "
