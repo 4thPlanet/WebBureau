@@ -35,13 +35,11 @@ class caching extends module {
 	}
 
 	public static function get_site_cacher($module) {
-		$cacher = static::get_module_setting('Caching', 'Caching Method');
 		// return a new instance of the cacher..
-		return new $cacher($module);
+		if ($cacher = static::get_module_setting('Caching', 'Caching Method'))
+			return new $cacher($module);
+		else return new noCache();
 	}
-
-
-
 }
 
 interface CacheInterface {
@@ -50,5 +48,13 @@ interface CacheInterface {
 	public function delete($key);
 	public function deleteAllModuleCache();
 	public function deleteAllCache();
+}
+
+class noCache implements CacheInterface {
+	public function get($key) {return null; }
+	public function set($key,$val) {return false; }
+	public function delete($key) {return true;}
+	public function deleteAllModuleCache() {return true; }
+	public function deleteAllCache() {return true; }
 }
 ?>
