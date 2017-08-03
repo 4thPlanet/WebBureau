@@ -4,5 +4,6 @@
 	"Core" : 0,
 	"Filename" : "WideLayout.php",
 	"Class" : "layout_wide",
-	"Requires" : ["Layout"]
+	"Requires" : ["Layout"],
+	"Extends": "Layout"
 }

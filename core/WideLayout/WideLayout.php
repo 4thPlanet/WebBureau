@@ -22,11 +22,17 @@ class layout_wide extends layout {
 		static::force_asset($initial,'css',utilities::get_public_location(__DIR__ . '/style/style.css'));
 		static::force_asset($initial,'script',"{$local}script/jquery.min.js");
 		static::force_asset($initial,'script',utilities::get_public_location(__DIR__ . '/script/script.js'));
+
+		$icon_resource = new resources(static::get_module_setting('Layout', 'favicon'));
 ?><!DOCTYPE html>
 <html>
 	<head>
 		<title><?echo $page_title?></title>
+		<base href="<?php echo $local;?>" />
+		<?php if ($icon_resource->filename){?>
+		<link rel="shortcut icon" href="<?php echo utilities::get_public_location($icon_resource->filename)?>" />
 		<?php
+		}
 			/* Go through scripts (if any) */
 			if (!empty($initial['script'])) {
 				foreach($initial['script'] as $script) {
