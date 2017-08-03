@@ -87,11 +87,11 @@ class utilities extends module {
 	  */
 
 	 /* unserialized: array(
-	 				'/[ \.]/',
+	 				'/[ \.#]/',
 	 				'/[&]/',
 	 				'/["]/')
 	 */
-	 const URL_REPLACE_PATTERNS = 'a:3:{i:0;s:7:"/[ \.]/";i:1;s:5:"/[&]/";i:2;s:5:"/["]/";}';
+	 const URL_REPLACE_PATTERNS = 'a:3:{i:0;s:8:"/[ \.#]/";i:1;s:5:"/[&]/";i:2;s:5:"/["]/";}';
 
 	 /* unserialized:
 	  * array(
@@ -195,7 +195,7 @@ class utilities extends module {
 	 	$loc = (empty($loc) ? getcwd() : $loc);
 	 	$dir = scandir($loc);
 	 	foreach($dir as $idx=>$file) {
-	 		if (preg_match('/\.+/',$file) || is_file($file))
+	 		if (in_array($file,array('.','..')) || !is_dir($loc.$file))
 	 			unset($dir[$idx]);
 	 	}
 	 	return array_values($dir);}
@@ -393,7 +393,7 @@ class utilities extends module {
  	 ** $key - The new key to use
  	 */
  	public static function group_numeric_by_key($narr,$key) {
- 		if (empty($narr)) return;
+ 		if (empty($narr)) return array();
  		$arr = array();
  		$depth = 0;
  		foreach($narr as $idx=>$val) {
