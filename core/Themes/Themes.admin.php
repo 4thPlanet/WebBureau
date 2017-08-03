@@ -131,7 +131,7 @@ class themes_admin extends themes {
 				</div>
 				<div class='field'>
 					<label for='theme-style'>CSS:</label>
-					<textarea id='theme-style' name='style'>{$theme['STYLE']}</textarea>
+					<textarea id='theme-style' name='style' rows='20'>{$theme['STYLE']}</textarea>
 				</div>";
 			if ($s_user->check_right('Themes','Administration','Set Default Theme')) {
 				$checked = $theme['IS_DEFAULT'] ? 'checked="checked"' : '';
@@ -145,12 +145,16 @@ class themes_admin extends themes {
 				<div class='field'>
 					<label for='theme-layout-module'>Layout Module:</label>
 					<select id='theme-layout-module' name='module'>";
-			$query = "SELECT ID, NAME FROM _MODULES ORDER BY NAME";
-			$modules = $db->run_query($query);
-			foreach($modules as $module) {
+
+			$layout_module = static::get_module_by_name("Layout");
+			$output['html'] .= "<option value='{$layout_module->ID}'>{$layout_module->NAME}</option>";
+
+			$layout_extensions = $layout_module->get_module_extensions();
+			foreach($layout_extensions as $module) {
 				$selected = ($module['ID'] == $theme['MODULE_ID']) || (is_null($theme['MODULE_ID']) && $module['NAME'] == 'Layout' ) ? 'selected="selected"' : '';
 				$output['html'] .= "<option value='{$module['ID']}' $selected>{$module['NAME']}</option>";
 			}
+
 			$output['html'] .= "
 					</select>
 				</div>
