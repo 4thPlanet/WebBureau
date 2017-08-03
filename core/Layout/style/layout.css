@@ -5,7 +5,7 @@
 #widget_list button.addTo {margin-left: 30px;}
 .widgets {min-height: 10px; background: #CCC;}
 .widgets .remove {
-	background: url("/images/icon-delete.png"); 
+	background: url("../../../images/icon-delete.png"); 
 	display: inline-block; 
 	float: right; 
 	width: 16px; 
@@ -13,7 +13,7 @@
 	cursor: pointer;
 }
 .widgets .list {
-	background: url("/images/icon-edit.png"); 
+	background: url("../../../images/icon-edit.png"); 
 	display: inline-block; 
 	float: right; 
 	width: 16px; 
