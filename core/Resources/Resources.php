@@ -37,7 +37,7 @@ class resources extends files {
 	}
 
 	public static function install() {
-		global $db;
+		global $db,$local_dir;
 		$query = "
 			CREATE TABLE IF NOT EXISTS _RESOURCE_TYPES(
 				ID int auto_increment,
@@ -80,6 +80,7 @@ class resources extends files {
 		$db->run_query($query);
 
 		//TODO: Auto-add resources in /images, /script, and /style
+		static::addResource("icon", "favicon", $local_dir . "images/favicon.png");
 
 		return true;
 	}
@@ -192,10 +193,11 @@ class resources extends files {
 					$type = 'css';
 					break;
 				case 'script':
+				case 'icon':
 					$type = $resource['NAME'];
 					break;
 				default:
-					continue;	// icons and images don't go in output (yet)
+					continue;	// images don't go in output (yet)
 			}
 			$output[$type][] = utilities::get_public_location($resource['FILENAME']);
 		}
