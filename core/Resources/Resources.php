@@ -38,15 +38,6 @@ class resources extends files {
 
 	public static function install() {
 		global $db,$local_dir;
-		$query = "
-			CREATE TABLE IF NOT EXISTS _RESOURCE_TYPES(
-				ID int auto_increment,
-			    NAME varchar(32),
-			    CODE varchar(255),
-			    PRIMARY KEY(ID),
-				UNIQUE(NAME)
-			)";
-		$db->run_query($query);
 
 		$query = "
 			INSERT INTO _RESOURCE_TYPES (NAME,CODE) VALUES
@@ -67,17 +58,6 @@ class resources extends files {
 			array("type" => "s", "value" => '<link rel="icon" href="{RESOURCE}" />'),
 		);
 		$db->run_query($query,$params);
-
-		$query = "
-			CREATE TABLE IF NOT EXISTS _RESOURCES (
-			ID int auto_increment,
-		    RESOURCE_TYPE_ID int,
-		    NAME varchar(32),
-		    FILENAME varchar(255),
-		    PRIMARY KEY(ID),
-		    FOREIGN KEY (RESOURCE_TYPE_ID) REFERENCES _RESOURCE_TYPES(ID)
-		)";
-		$db->run_query($query);
 
 		//TODO: Auto-add resources in /images, /script, and /style
 		static::addResource("icon", "favicon", $local_dir . "images/favicon.png");
@@ -222,5 +202,36 @@ class resources extends files {
 		);
 	}
 
+	public static function required_tables() {
+		return array(
+			'_RESOURCE_TYPES' => array(
+				'columns' => array(
+					'ID' => 'int auto_increment',
+					'NAME' => 'varchar(32)',
+					'CODE' => 'varchar(255)'
+				),
+				'keys' => array(
+					'PRIMARY' => array('ID'),
+					'UNIQUE' => array(
+						array('NAME')
+					)
+				)
+			),
+			'_RESOURCES' => array(
+				'columns' => array(
+					'ID' => 'int auto_increment',
+					'RESOURCE_TYPE_ID' => 'int',
+					'NAME' => 'varchar(32)',
+					'FILENAME' => 'varchar(255)'
+				),
+				'keys' => array(
+					'PRIMARY' => array('ID'),
+					'FOREIGN' => array(
+						'RESOURCE_TYPE_ID' => array('table' => '_RESOURCE_TYPES','column' => 'ID')
+					)
+				)
+			)
+		);
+	}
 }
 ?>

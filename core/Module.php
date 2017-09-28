@@ -130,6 +130,9 @@ class module {
 
 		require_once($info['Directory'].$info['Filename']);
 
+		/* Get all necessary tables... */
+		call_user_func_array(array($info['Class'],'install_required_tables'),array());
+
 		/* Run any commands specific for this module's installation... */
 		call_user_func_array(array($info['Class'],'install'),array());
 
@@ -161,73 +164,75 @@ class module {
 		return true;
 	}
 
+	protected static function install_required_tables() {
+		global $db;
+		$required_tables = static::required_tables();
+		foreach($required_tables as $table => $table_definition) {
+			// check if $table exists...
+			if ($db->table_exists($table)) {
+				// confirm table columns
+				foreach($table_definition['columns'] as $column_name => $column_definition) {
+					if (!$db->table_column_exists($table, $column_name)) {
+						// add column
+						$db->add_table_column($table, $column_name, $column_definition);
+					}
+				}
+
+				// confirm table keys
+				$all_keys = utilities::group_numeric_by_keys($db->table_keys($table), array('COLS','REFERENCED_TABLE_NAME','INDEXNAME'));
+
+				foreach($table_definition['keys'] as $key_type => $keys) {
+					if ($key_type == 'PRIMARY') {
+						// confirm primary key via $all_keys[$keys]['']['PRIMARY']
+						$pk = implode(",",$keys);
+						if (!isset($all_keys[$pk]) || !isset($all_keys[$pk]['']) || !isset($all_keys[$pk]['']['PRIMARY'])) {
+							$db->add_table_key($table,'PRIMARY',$keys);
+						}
+					} elseif ($key_type == 'FOREIGN') {
+						// confirm each FK is in place...
+						foreach($keys as $key_column => $table_reference) {
+							if (!isset($all_keys[$key_column]) || !isset($all_keys[$key_column][$table_reference['table']])) {
+								$db->add_table_key($table, $key_type, array($key_column),$table_reference);
+							}
+
+						}
+					} else {
+						// confirm every other key (unique or otherwise) is in place...
+						$non_unique = $key_type !== 'UNIQUE';
+						foreach($keys as $columns) {
+							$key_found = false;
+							$key_string = implode(",",$columns);
+							if (!isset($all_keys[$key_string]) || !isset($all_keys[$key_string][''])) {
+								$db->add_table_key($table, $key_type, $columns);
+							} else {
+								// need to go through each existing key with this column, make sure it matches up (e.g., is UNIQUE constraint present)
+								foreach($all_keys[$key_string][''] as $key_data) {
+									if ($key_data['NON_UNIQUE'] == $non_unique) {
+										$key_found = true;
+										break;
+									}
+								}
+							}
+							if (!$key_found) {
+								$db->add_table_key($table, $key_type, $columns);
+							}
+						}
+					}
+				}
+			} else {
+				// install table...
+				$db->create_table($table,$table_definition['columns'],$table_definition['keys']);
+			}
+		}
+	}
+
 	/* What needs to be done in order to install the module*/
 	public static function install() {
 		global $db;
-		$query = "
-			CREATE TABLE IF NOT EXISTS _MODULES (
-				ID int AUTO_INCREMENT,
-				NAME varchar(30),
-				PARENT_MODULE_ID int,
-				DESCRIPTION varchar(255),
-				IS_CORE bit,
-				FILENAME varchar(200),
-				CLASS_NAME varchar(100),
-				SLUG varchar(50) UNIQUE,
-				PRIMARY KEY (ID),
-				FOREIGN KEY (PARENT_MODULE_ID) REFERENCES _MODULES(ID)
-			);";
-		$db->run_query($query);
-		$query = "
-			CREATE TABLE IF NOT EXISTS _MODULE_SETTINGS (
-				MODULE_ID int,
-				SETTING varchar(64),
-				VALUE varchar(256),
-				PRIMARY KEY (MODULE_ID,SETTING),
-				FOREIGN KEY (MODULE_ID) REFERENCES _MODULES(ID)
-			);";
-		$db->run_query($query);
-		$query = "
-			CREATE TABLE IF NOT EXISTS _MODULES_DEPENDENCIES (
-				ID int AUTO_INCREMENT,
-				MODULE_ID int,
-				REQUIRED_MODULE_ID int,
-				PRIMARY KEY (ID),
-				FOREIGN KEY (MODULE_ID) REFERENCES _MODULES(ID) ON DELETE CASCADE,
-				FOREIGN KEY (REQUIRED_MODULE_ID) REFERENCES _MODULES(ID)
-			)";
-		$db->run_query($query);
-		$query = "
-			CREATE TABLE IF NOT EXISTS _HELPERS (
-				ID int AUTO_INCREMENT,
-				TYPE varchar(32),
-				METHOD_NAME varchar(32),
-				FALLBACK_METHOD varchar(32),
-				PRIMARY KEY (ID)
-			);";
-		$db->run_query($query);
+
+		self::install_required_tables();
+		// after $this->required_tables() installed...
 		$query = "INSERT INTO _HELPERS (TYPE,METHOD_NAME,FALLBACK_METHOD) VALUES ('admin','view','admin'),('post','post','post'),('ajax','view','ajax')";
-		$db->run_query($query);
-		$query = "
-			CREATE TABLE IF NOT EXISTS _MODULES_HELPERS (
-				MODULE_ID int,
-				HELPER_ID int,
-				FILENAME varchar(200),
-				CLASS_NAME varchar(100),
-				PRIMARY KEY (MODULE_ID,HELPER_ID),
-				FOREIGN KEY (MODULE_ID) REFERENCES _MODULES (ID),
-				FOREIGN KEY (HELPER_ID) REFERENCES _HELPERS (ID)
-			);";
-		$db->run_query($query);
-		$query = "CREATE TABLE IF NOT EXISTS _WIDGETS (
-			ID int AUTO_INCREMENT,
-			MODULE_ID int,
-			NAME varchar(200),
-			FILENAME varchar(200),
-			CLASS_NAME varchar(100),
-			PRIMARY KEY (ID),
-			FOREIGN KEY (MODULE_ID) REFERENCES _MODULES(ID)
-		);";
 		$db->run_query($query);
 		return true;
 
@@ -237,6 +242,110 @@ class module {
 
 	/* Returns list of Rights required by Module */
 	public static function required_rights() { return array();}
+
+	/* Returns a list of Tables required by Module, along with their column definitions */
+	public static function required_tables() {
+		return array(
+			'_MODULES' => array(
+				'columns' => array(
+					'ID' => 'int AUTO_INCREMENT',
+					'NAME' => 'varchar(30)',
+					'PARENT_MODULE_ID' => 'int',
+					'DESCRIPTION' => 'varchar(255)',
+					'IS_CORE' => 'bit',
+					'FILENAME' => 'varchar(200)',
+					'CLASS_NAME' => 'varchar(100)',
+					'SLUG' => 'varchar(50)',
+				),
+				'keys' => array(
+					'PRIMARY' => array('ID'),
+					'FOREIGN' => array(
+						'PARENT_MODULE_ID' => array('table' => '_MODULES','column' => 'ID'),
+					),
+					'UNIQUE' => array(
+						array('SLUG'),
+						array('NAME')
+					),
+				),
+
+			),
+			'_MODULE_SETTINGS' => array(
+				'columns' => array(
+					'MODULE_ID' => 'int',
+					'SETTING' => 'varchar(64)',
+					'VALUE' => 'varchar(256)',
+				),
+				'keys' => array(
+					'PRIMARY' => array('MODULE_ID','SETTING'),
+					'FOREIGN' => array(
+						'MODULE_ID' => array('table' => '_MODULES','column' => 'ID'),
+					)
+				)
+			),
+			'_MODULES_DEPENDENCIES' => array(
+				'columns' => array(
+					'ID' => 'int AUTO_INCREMENT',
+					'MODULE_ID' => 'int',
+					'REQUIRED_MODULE_ID' => 'int'
+				),
+				'keys' => array(
+					'PRIMARY' => array('ID'),
+					'FOREIGN' => array(
+						'MODULE_ID' => array('table' => '_MODULES', 'column' => 'ID', 'delete' => 'CASCADE'),
+						'REQUIRED_MODULE_ID' => array('table' => '_MODULES', 'column' => 'ID'),
+					)
+				)
+			),
+			'_HELPERS' => array(
+				'columns' => array(
+					'ID' => 'int AUTO_INCREMENT',
+					'TYPE' => 'varchar(32)',
+					'METHOD_NAME' => 'varchar(32)',
+					'FALLBACK_METHOD' => 'varchar(32)',
+				),
+				'keys' => array(
+					'PRIMARY' => array('ID'),
+				)
+
+			),
+			'_MODULES_HELPERS' => array(
+				'columns' => array(
+					'MODULE_ID' => 'int',
+					'HELPER_ID' => 'int',
+					'FILENAME' => 'varchar(200)',
+					'CLASS_NAME' => 'varchar(100)',
+				),
+				'keys' => array(
+					'PRIMARY' => array('MODULE_ID','HELPER_ID'),
+					'FOREIGN' => array(
+						'MODULE_ID' => array('table' => '_MODULES','column' => 'ID'),
+						'HELPER_ID' => array('table' => '_HELPERS','column' => 'ID')
+					),
+					'' => array(
+						array('CLASS_NAME','FILENAME')
+					)
+				)
+			),
+			'_WIDGETS' => array(
+				'columns' => array(
+					'ID' => 'int AUTO_INCREMENT',
+					'MODULE_ID' => 'int',
+					'NAME' => 'varchar(200)',
+					'FILENAME' => 'varchar(200)',
+					'CLASS_NAME' => 'varchar(100)',
+				),
+				'keys' => array(
+					'PRIMARY' => array('ID'),
+					'FOREIGN' => array(
+						'MODULE_ID' => array('table' => '_MODULES','column' => 'ID'),
+					),
+					'' => array(
+						array('CLASS_NAME','FILENAME')
+					)
+				)
+			)
+		);
+	}
 
 	/* Returns a multi-dimensional array of menu options for this module (including sub-menus) */
 	public static function menu() {

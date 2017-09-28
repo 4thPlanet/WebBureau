@@ -58,17 +58,24 @@ class databasecaching extends caching implements CacheInterface {
 	}
 
 	public static function install() {
-		global $db;
-		$query = "
-			CREATE TABLE IF NOT EXISTS _CACHE (
-				MODULE_ID int,
-				CACHE_KEY varchar(200),
-				CACHE_VALUE text,
-				PRIMARY KEY (MODULE_ID,CACHE_KEY),
-				FOREIGN KEY (MODULE_ID) REFERENCES _MODULES(ID)
-			);
-		";
-		$db->run_query($query);
+		// required_tables, only
+	}
+	public static function required_tables() {
+		return array(
+			'_CACHE' => array(
+				'columns' => array(
+					'MODULE_ID' => 'int',
+					'CACHE_KEY' => 'varchar(200)',
+					'CACHE_VALUE' => 'text',
+				),
+				'keys' => array(
+					'PRIMARY' => array('MODULE_ID','CACHE_KEY'),
+					'FOREIGN' => array(
+						'MODULE_ID' => array('table' => '_MODULES','column' => 'ID')
+					)
+				)
+			)
+		);
 	}
 	public static function uninstall() {return false;}
 

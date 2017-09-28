@@ -338,16 +338,7 @@ class tables extends module {
 			return $cached_response;
 		}
 
-		$query = "
-			SELECT CASE COUNT(*) WHEN 0 THEN 0 ELSE 1 END AS is_table
-			FROM INFORMATION_SCHEMA.TABLES T
-			WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?";
-		$params = array(
-			array("type" => "s", "value" => $db->get_db_name()),
-			array("type" => "s", "value" => $table)
-		);
-		$result = $db->run_query($query,$params);
-		$ret = $result[0]['is_table']==1;
+		$ret = $db->table_exists($table);
 		$cache->set($cache_key,$ret);
 
 		return $ret;
@@ -361,18 +352,8 @@ class tables extends module {
 		if (!is_null($cached_response = $cache->get($cache_key))) {
 			return $cached_response;
 		}
-		$query = "
-			SELECT CASE COUNT(*) WHEN 0 THEN 0 ELSE 1 END AS has_column
-			FROM INFORMATION_SCHEMA.COLUMNS C
-			WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?
-		";
-		$params = array(
-			array("type" => "s", "value" => $db->get_db_name()),
-			array("type" => "s", "value" => $table),
-			array("type" => "s", "value" => $column)
-		);
-		$result = $db->run_query($query,$params);
-		$ret = $result[0]['has_column']==1;
+
+		$ret = $db->table_column_exists($table, $column);
 		$cache->set($cache_key,$ret);
 		return $ret;
 	}
@@ -619,41 +600,7 @@ class tables extends module {
 	}
 
 	public static function install() {
-		global $db;
-		$query = "
-			CREATE TABLE IF NOT EXISTS _TABLE_INFO (
-				TABLE_NAME varchar(100),
-				SLUG varchar(100) UNIQUE,
-				SHORT_DISPLAY varchar(50),
-				PREVIEW_DISPLAY varchar(500),
-				PREVIEW_DISPLAY_BEFORE text,
-				PREVIEW_DISPLAY_AFTER text,
-				FULL_DISPLAY text,
-				LINK_BACK_TO_TABLE bit,
-				LINK_TO_ALL_TABLES bit,
-				DEFAULT_ORDER varchar(64),
-				FILTER_COLUMN varchar(64),
-				ROW_DISPLAY_MAX int,
-				DETAILED_MENU_OPTIONS bit,
-				PRIMARY KEY (TABLE_NAME)
-			) ENGINE=INNODB;";
-		$db->run_query($query);
-		$query = "
-			CREATE TABLE IF NOT EXISTS _TABLE_METAS (
-				TABLE_NAME varchar(100),
-				META_NAME varchar(100),
-				META_CONTENT text,
-				PRIMARY KEY (TABLE_NAME,META_NAME)
-			) ENGINE=INNODB;";
-		$db->run_query($query);
-		$query = "
-			CREATE TABLE IF NOT EXISTS _TABLE_RESOURCES (
-				TABLE_NAME varchar(100),
-				RESOURCE_ID int,
-				PRIMARY KEY (TABLE_NAME,RESOURCE_ID),
-				FOREIGN KEY (RESOURCE_ID) REFERENCES _RESOURCES(ID)
-			);
-		";
+		// after install of required_tables...
 		return true;
 	}
 
@@ -709,6 +656,56 @@ class tables extends module {
 		return $required;
 	}
 
+	public static function required_tables() {
+		return array(
+			'_TABLE_INFO' => array(
+				'columns' => array(
+					'TABLE_NAME' => 'varchar(100)',
+					'SLUG' => 'varchar(100)',
+					'SHORT_DISPLAY' => 'varchar(50)',
+					'PREVIEW_DISPLAY' => 'varchar(500)',
+					'PREVIEW_DISPLAY_BEFORE' => 'text',
+					'PREVIEW_DISPLAY_AFTER' => 'text',
+					'FULL_DISPLAY' => 'text',
+					'LINK_BACK_TO_TABLE' => 'bit',
+					'LINK_TO_ALL_TABLES' => 'bit',
+					'DEFAULT_ORDER' => 'varchar(64)',
+					'FILTER_COLUMN' => 'varchar(64)',
+					'ROW_DISPLAY_MAX' => 'int',
+					'DETAILED_MENU_OPTIONS' => 'bit',
+				),
+				'keys' => array(
+					'PRIMARY' => array('TABLE_NAME'),
+					'UNIQUE' => array(
+						array('SLUG')
+					)
+				)
+			),
+			'_TABLE_METAS' => array (
+				'columns' => array(
+					'TABLE_NAME' => 'varchar(100)',
+					'META_NAME' => 'varchar(100)',
+					'META_CONTENT' => 'text',
+				),
+				'keys' => array(
+					'PRIMARY' => array('TABLE_NAME','META_NAME'),
+				)
+			),
+			'_TABLE_RESOURCES' => array(
+				'columns' => array(
+					'TABLE_NAME' => 'varchar(100)',
+					'RESOURCE_ID' => 'int',
+				),
+				'keys' => array(
+					'PRIMARY' => array('TABLE_NAME','RESOURCE_ID'),
+					'FOREIGN' => array(
+						'RESOURCE_ID' => array('table' => '_RESOURCES','column' => 'ID'),
+					)
+				)
+			),
+		);
+	}
+
 	public static function get_primary_key($table_name) {
 		global $db;
 		$cache = caching::get_site_cacher('Tables');
@@ -728,6 +725,37 @@ class tables extends module {
 			array("type" => "s", "value" => $table_name)
 		);
 		$result = $db->run_query($query,$params);
+		$cache->set($cache_key,$result);
+		return $result;
+	}
+
+	public static function get_table_keys($table_name) {
+		global $db;
+		$cache = caching::get_site_cacher('Tables');
+		$cache_key = __FUNCTION__ .'_'. serialize(func_get_args());
+		if (!is_null($cached_response = $cache->get($cache_key))) {
+			return $cached_response;
+		}
+		$result = array();
+		$all_keys = $db->table_keys($table_name);
+
+		foreach($all_keys as $key_data) {
+			if ($key_data['INDEXNAME'] == 'PRIMARY') {
+				$result['PRIMARY'] = explode(',',$key_data['COLS']);
+			} elseif (!is_null($key_data['REFERENCED_TABLE_NAME'])) {
+				$result['FOREIGN'][$key_data['COLS']] = array('table' => $key_data['REFERENCED_TABLE_NAME'],'column' => $key_data['REFERENCED_COLUMN_NAME']);
+				if ($key_data['UPDATE_RULE'] != 'RESTRICT') {
+					$result['FOREIGN'][$key_data['COLS']]['update'] = $key_data['UPDATE_RULE'];
+				}
+				if ($key_data['DELETE_RULE'] != 'RESTRICT') {
+					$result['FOREIGN'][$key_data['COLS']]['delete'] = $key_data['DELETE_RULE'];
+				}
+			} elseif ($key_data['NON_UNIQUE'] == 0) {
+				$result['UNIQUE'][] = explode(',', $key_data['COLS']);
+			} else {
+				$result[''][] = explode(',', $key_data['COLS']);
+			}
+		}
 		$cache->set($cache_key,$result);
 		return $result;
 	}

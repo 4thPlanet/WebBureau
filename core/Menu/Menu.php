@@ -10,31 +10,6 @@ class menu extends module {
 		/* There are 2 necessary tables - _MENU and _MENU_ARGS
 		 * Along with 3 widgets - menu, centered menu, and vertical menu
 		 */
-		global $local, $db;
-		$query = "
-			CREATE TABLE IF NOT EXISTS _MENU (
-				ID int AUTO_INCREMENT,
-				PARENT_ID int,
-				MODULE_ID int,
-				TEXT varchar(100),
-				RIGHT_ID int,
-				DISPLAY_ORDER int,
-				PRIMARY KEY (ID),
-				FOREIGN KEY (PARENT_ID) REFERENCES _MENU(ID),
-				FOREIGN KEY (MODULE_ID) REFERENCES _MODULES(ID),
-				FOREIGN KEY (RIGHT_ID) REFERENCES _RIGHTS(ID)
-			)";
-		$db->run_query($query);
-		$query = "
-			CREATE TABLE IF NOT EXISTS _MENU_ARGS (
-				ID int AUTO_INCREMENT,
-				MENU_ID int,
-				ARG_NUMBER int,
-				ARG varchar(50),
-				PRIMARY KEY (ID),
-				FOREIGN KEY (MENU_ID) REFERENCES _MENU(ID)
-			 )";
-		$db->run_query($query);
 
 		/* Install Widgets*/
 		require_once(__DIR__ . '/Menu.Widget.php');
@@ -46,6 +21,43 @@ class menu extends module {
 		centered_menu_widget::install();
 
 		return true;
+	}
+
+	public static function required_tables() {
+		return array(
+			'_MENU' => array(
+				'columns' => array(
+					'ID' => 'int auto_increment',
+					'PARENT_ID' => 'int',
+					'MODULE_ID' => 'int',
+					'TEXT' => 'varchar(100)',
+					'RIGHT_ID' => 'int',
+					'DISPLAY_ORDER' => 'int',
+				),
+				'keys' => array(
+					'PRIMARY' => array('ID'),
+					'FOREIGN' => array(
+						'PARENT_ID' => array('table' => '_MENU','column' => 'ID'),
+						'MODULE_ID' => array('table' => '_MODULES','column' => 'ID'),
+						'RIGHT_ID' => array('table' => '_RIGHTS','column' => 'ID')
+					)
+				)
+			),
+			'_MENU_ARGS' => array(
+				'columns' => array(
+					'ID' => 'int auto_increment',
+					'MENU_ID' => 'int',
+					'ARG_NUMBER' => 'int',
+					'ARG' => 'varchar(50)'
+				),
+				'keys' => array(
+					'PRIMARY' => array('ID'),
+					'FOREIGN' => array(
+						'MENU_ID' => array('table' => '_MENU','column' => 'ID')
+					)
+				)
+			),
+		);
 	}
 
 	public static function ajax($args,$request) {}

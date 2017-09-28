@@ -3,30 +3,6 @@ class themes extends module {
 	public static function install() {
 		/* Install _THEMES and _USERS_THEMES tables */
 		global $db;
-		$query = "
-			CREATE TABLE IF NOT EXISTS _THEMES (
-				ID int auto_increment,
-				NAME varchar(32),
-				STYLE text,
-				MODULE_ID int,
-				IS_DEFAULT bit(1) DEFAULT 0,
-				PRIMARY KEY (ID),
-				UNIQUE KEY (NAME),
-				FOREIGN KEY (MODULE_ID) REFERENCES _MODULES(ID)
-			);";
-		$db->run_query($query);
-
-		$query = "
-			CREATE TABLE IF NOT EXISTS _USERS_THEMES (
-				USER_ID int,
-				SESSION_ID varchar(32),
-				THEME_ID int,
-				UNIQUE(USER_ID),
-				UNIQUE(SESSION_ID),
-				FOREIGN KEY (USER_ID) REFERENCES _USERS(ID),
-				FOREIGN KEY (THEME_ID) REFERENCES _THEMES(ID)
-			);";
-		$db->run_query($query);
 
 		/* Install widgets... */
 		require_once(__DIR__ . '/Personal.Themes.Widget.php');
@@ -135,6 +111,47 @@ class themes extends module {
 					'default_groups' => array('Admin','Registered User')
 				);
 		return $rights;
+	}
+
+	public static function required_tables() {
+		return array(
+			'_THEMES' => array(
+				'columns' => array(
+					'ID' => 'int auto_increment',
+					'NAME' => 'varchar(32)',
+					'STYLE' => 'text',
+					'MODULE_ID' => 'int',
+					'IS_DEFAULT' => 'bit(1) DEFAULT 0'
+				),
+				'keys' => array(
+					'PRIMARY' => array('ID'),
+					'FOREIGN' => array(
+						'MODULE_ID' => array('table' => '_MODULES','column' => 'ID'),
+					),
+					'UNIQUE' => array(
+						array('NAME')
+					)
+				)
+			),
+			'_USERS_THEMES' => array(
+				'columns' => array(
+					'USER_ID' => 'int',
+					'SESSION_ID' => 'varchar(32)',
+					'THEME_ID' => 'int',
+				),
+				'keys' => array(
+					'PRIMARY' => array('USER_ID','SESSION_ID'),
+					'FOREIGN' => array(
+						'USER_ID' => array('table' => '_USERS','column' => 'ID'),
+						'THEME_ID' => array('table' => '_THEMES','column' => 'ID'),
+					),
+					'UNIQUE' => array(
+						array('USER_ID'),
+						array('SESSION_ID')
+					)
+				)
+			),
+		);
 	}
 
 	/* This function will display the actual page... */

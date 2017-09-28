@@ -34,6 +34,10 @@ class caching extends module {
 		);
 	}
 
+	public static function required_tables() {
+		return array();
+	}
+
 	public static function get_site_cacher($module) {
 		// return a new instance of the cacher..
 		if ($cacher = static::get_module_setting('Caching', 'Caching Method'))

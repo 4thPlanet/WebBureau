@@ -442,6 +442,30 @@ class users extends module {
 		return $output;
 	}
 
+	public static function get_group_id($group) {
+		global $db;
+		$query = "SELECT ID FROM _GROUPS WHERE NAME = ?";
+		$params = array(
+			array("type" => "s", "value" => $group)
+		);
+		$result = $db->run_query($query,$params);
+		if ($result) return $result[0]['ID'];
+	}
+
+	public static function get_group_rights($group) {
+		global $db;
+		$group_id = is_numeric($group) ? $group : static::get_group_id($group);
+		$query = "
+			SELECT RIGHT_ID
+			FROM _GROUPS_RIGHTS
+			WHERE GROUP_ID = ?
+		";
+		$params = array(
+			array("type" => "i", "value" => $group_id)
+		);
+		return utilities::group_numeric_by_key($db->run_query($query,$params),'RIGHT_ID');
+	}
+
 	public static function edit_user($user) {
 		global $local, $db;
 		/* This should only be viewable if the current user = $user */
@@ -719,31 +743,111 @@ Regards,
 		return $rights;
 	}
 
+	public static function required_tables() {
+		return array(
+			'_USERS' => array(
+				'columns' => array(
+					'ID' => 'int auto_increment',
+					'USERNAME' => 'varchar(20)',
+					'USER_SALT' => 'char(64)',
+					'PASSWORD' => 'char(64)',
+					'EMAIL' => 'varchar(255)',
+					'DISPLAY_NAME' => 'varchar(100)',
+					'REGISTER_DATE' => 'datetime',
+				),
+				'keys' => array(
+					'PRIMARY' => array('ID'),
+					'UNIQUE' => array(
+						array('USERNAME'),
+						array('EMAIL'),
+					)
+				)
+			),
+			'_GROUPS' => array(
+				'columns' => array(
+					'ID' => 'int auto_increment',
+					'NAME' => 'varchar(100)',
+					'DESCRIPTION' => 'varchar(100)',
+				),
+				'keys' => array(
+					'PRIMARY' => array('ID'),
+					'UNIQUE' => array(
+						array('NAME')
+					)
+				)
+			),
+			'_RIGHT_TYPES' => array(
+				'columns' => array(
+					'ID' => 'int auto_increment',
+					'MODULE_ID' => 'int',
+					'NAME' => 'varchar(50)'
+				),
+				'keys' => array(
+					'PRIMARY' => array('ID'),
+					'FOREIGN' => array(
+						'MODULE_ID' => array('table' => '_MODULES','column' => 'ID')
+					)
+				)
+			),
+			'_RIGHTS' => array(
+				'columns' => array(
+					'ID' => 'int auto_increment',
+					'RIGHT_TYPE_ID' => 'int',
+					'NAME' => 'varchar(100)',
+					'DESCRIPTION' => 'varchar(255)',
+				),
+				'keys' => array(
+					'PRIMARY' => array('ID'),
+					'FOREIGN' => array(
+						'RIGHT_TYPE_ID' => array('table' => '_RIGHT_TYPES','column' => 'ID')
+					)
+				)
+			),
+			'_USERS_GROUPS' => array(
+				'columns' => array(
+					'USER_ID' => 'int',
+					'GROUP_ID' => 'int'
+				),
+				'keys' => array(
+					'PRIMARY' => array('USER_ID','GROUP_ID'),
+					'FOREIGN' => array(
+						'USER_ID' => array('table' => '_USERS','column' => 'ID'),
+						'GROUP_ID' => array('table' => '_GROUPS','column' => 'ID')
+					)
+				)
+			),
+			'_GROUPS_RIGHTS' => array(
+				'columns' => array(
+					'GROUP_ID' => 'int',
+					'RIGHT_ID' => 'int',
+				),
+				'keys' => array(
+					'PRIMARY' => array('GROUP_ID','RIGHT_ID'),
+					'FOREIGN' => array(
+						'GROUP_ID' => array('table' => '_GROUPS','column' => 'ID'),
+						'RIGHT_ID' => array('table' => '_RIGHTS','column' => 'ID')
+					)
+				)
+			),
+			# Expand WIDGETS like so...
+			'_WIDGETS' => array(
+				'columns' => array(
+					'RIGHT_ID' => 'int'
+				),
+				'keys' => array(
+					'FOREIGN' => array(
+						'RIGHT_ID' => array('table' => '_RIGHTS','column' => 'ID')
+					)
+				)
+			)
+		);
+	}
+
 	public static function install() {
 		/* Installs the User module */
 		global $db;
 		/* Create the necessary tables... */
-		$query = array();
-		$query[] = "CREATE TABLE IF NOT EXISTS _USERS (
-			ID int AUTO_INCREMENT,
-			USERNAME varchar(20),
-			USER_SALT char(64),
-			PASSWORD char(64),
-			EMAIL varchar(255),
-			DISPLAY_NAME varchar(100),
-			REGISTER_DATE datetime,
-			PRIMARY KEY (ID),
-			UNIQUE (USERNAME),
-			UNIQUE(EMAIL)
-		);";
-		$query[] = "CREATE TABLE IF NOT EXISTS _GROUPS (
-			ID int AUTO_INCREMENT,
-			NAME varchar(100),
-			DESCRIPTION varchar(100),
-			PRIMARY KEY (ID),
-			UNIQUE (NAME)
-		);";
-		$query[] = "INSERT INTO _GROUPS (NAME, DESCRIPTION)
+		$query = "INSERT INTO _GROUPS (NAME, DESCRIPTION)
 		SELECT tmp.NAME, tmp.DESCRIPTION
 		FROM (
 			SELECT 'Admin' as NAME, 'This group will have be able to access the entire site.' as DESCRIPTION
@@ -754,56 +858,9 @@ Regards,
 		) tmp
 		LEFT JOIN _GROUPS G ON tmp.NAME = G.NAME
 		WHERE G.ID IS NULL;";
-		$query[] = "CREATE TABLE IF NOT EXISTS _RIGHT_TYPES (
-			ID int AUTO_INCREMENT,
-			MODULE_ID int,
-			NAME varchar(50),
-			PRIMARY KEY (ID),
-			FOREIGN KEY (MODULE_ID) REFERENCES _MODULES(ID)
-		);";
-		$query[] = "CREATE TABLE IF NOT EXISTS _RIGHTS (
-			ID int AUTO_INCREMENT,
-			RIGHT_TYPE_ID int,
-			NAME varchar(100),
-			DESCRIPTION varchar(255),
-			PRIMARY KEY (ID),
-			FOREIGN KEY (RIGHT_TYPE_ID) REFERENCES _RIGHT_TYPES(ID)
-		)";
-		$query[] = "CREATE TABLE IF NOT EXISTS _USERS_GROUPS (
-			USER_ID int,
-			GROUP_ID int,
-			PRIMARY KEY (USER_ID,GROUP_ID),
-			FOREIGN KEY (USER_ID) REFERENCES _USERS(ID),
-			FOREIGN KEY (GROUP_ID) REFERENCES _GROUPS(ID)
-		);";
-		$query[] = "CREATE TABLE IF NOT EXISTS _GROUPS_RIGHTS (
-			GROUP_ID int,
-			RIGHT_ID int,
-			PRIMARY KEY (GROUP_ID, RIGHT_ID),
-			FOREIGN KEY (GROUP_ID) REFERENCES _GROUPS(ID),
-			FOREIGN KEY (RIGHT_ID) REFERENCES _RIGHTS(ID)
-		);";
-		foreach($query as $q) $db->run_query($q);
-		$db->trigger('register_time','BEFORE INSERT','_USERS','SET NEW.REGISTER_DATE = IFNULL(NEW.REGISTER_DATE,NOW())');
 
-		/* Add to the _WIDGETS table RIGHT_ID (if necessary)*/
-		$query = "SELECT CASE COUNT(*) WHEN 0 THEN 0 ELSE 1 END AS COLUMN_EXISTS
-		FROM INFORMATION_SCHEMA.COLUMNS
-		WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?";
-		$params = array(
-			array("type" => "s", "value" => $db->get_db_name()),
-			array("type" => "s", "value" => '_WIDGETS'),
-			array("type" => "s", "value" => "RIGHT_ID")
-		);
-		$result = $db->run_query($query,$params);
-		$column_exists = $result[0]['COLUMN_EXISTS'];
-		if (!$column_exists) {
-			$query = "
-				ALTER TABLE _WIDGETS
-				ADD RIGHT_ID int,
-				ADD FOREIGN KEY (RIGHT_ID) REFERENCES _RIGHTS(ID)";
-			$db->run_query($query);
-		}
+		$db->run_query($query);
+		$db->trigger('register_time','BEFORE INSERT','_USERS','SET NEW.REGISTER_DATE = IFNULL(NEW.REGISTER_DATE,NOW())');
 
 		/* Create the widget records... */
 		require_once(__DIR__ . '/Login.Widget.php');

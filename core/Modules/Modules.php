@@ -73,12 +73,128 @@ class modules extends module {
 			}
 		} else {
 			$module = array_shift($args);
-			if (!$user->check_right('Modules','Administer', "Administer $module")) return false;
-			$helper = module::get_module_helpers(module::get_module_id($module),'admin');
+			if ($module == 'checkRights' || $module == 'checkTables') {
+				$action = $module;
+				$module = array_shift($args);
 
-			$class_name = module::get_module_class($module);
-			if ($class_name===false) return false;
-			return call_user_func_array(array($helper['admin']['CLASS_NAME'],'post'),array($args,$request));
+				if ($action == 'checkRights') {
+
+
+
+					if (isset($request['rightGroups']['new'])) {
+						$newRights = $request['rightGroups']['new'];
+						unset($request['rightGroups']['new']);
+					} else {
+						$newRights = array();
+					}
+
+					if ($user->check_right('Users', 'Rights', 'Assign Rights')) {
+						// first handle removed rights...
+						foreach($request['rightGroups'] as $right_id => $groups) {
+							// add non-existant group id in case no one will have that permission...
+							unset($_SESSION[__CLASS__][$module]['moduleRightsList'][$right_id]);
+							$query = "
+							DELETE
+							FROM _GROUPS_RIGHTS
+							WHERE RIGHT_ID = ? AND GROUP_ID NOT IN (".substr(str_repeat("?,",count($groups)),0,-1).")";
+							$params = array(
+								array("type" => "i", "value" => $right_id)
+							);
+							foreach($groups as $group_id)
+								array_push($params,array("type" => "i", "value" => $group_id));
+								$db->run_query($query,$params);
+						}
+						if ($_SESSION[__CLASS__][$module]['moduleRightsList']) {
+							// whatever rights remain, no groups have them
+							$query = "DELETE FROM _GROUPS_RIGHTS WHERE RIGHT_ID IN (".substr(str_repeat("?,",count($_SESSION[__CLASS__][$module]['moduleRightsList'])),0,-1).")";
+							$params = array();
+							foreach($_SESSION[__CLASS__][$module]['moduleRightsList'] as $right_id => $_ignore) {
+								array_push($params,array("type" => "i", "value" => $right_id));
+							}
+							$db->run_query($query,$params);
+						}
+						unset($_SESSION[__CLASS__][$module]['moduleRightsList']);
+
+						layout::set_message("Successfully assigned module rights.","success");
+
+						// and now assign rights..
+						users::assign_rights($request['rightGroups']);
+					}
+
+
+					if ($newRights && $user->check_right('Users','Rights','Create Rights')) {
+						// ..and now create and assign new rights
+						$newRightAssignments = array();
+						foreach($newRights as $rightDefinition => $groups) {
+							$rightDefinition = unserialize($rightDefinition);
+							list($right_type,$right_name,$right_description) = $rightDefinition;
+							$right_id = users::create_right($module, $right_type, $right_name, $right_description);
+							$newRightAssignments[$right_id] = $groups;
+						}
+						users::assign_rights($newRightAssignments);
+
+						layout::set_message("Successfully created and assigned new module rights.","success");
+					}
+
+					return;
+
+				} elseif ($action == 'checkTables') {
+					if (!$user->check_right('Tables','Table Actions','Add Table')) return false;
+
+					switch($request['checkTableAction']) {
+						case 'CreateMissingTables':
+							foreach($_SESSION[__CLASS__][$module]['MissingTables'] as $table_name => $table_definition) {
+								$db->create_table($table_name, $table_definition['columns'], $table_definition['keys']);
+							}
+							unset($_SESSION[__CLASS__][$module]['MissingTables']);
+							$cache = caching::get_site_cacher('Tables')->deleteAllModuleCache();
+							layout::set_message("Successfully added missing tables.","success");
+							return;
+						case 'CreateMissingColumns':
+							foreach($_SESSION[__CLASS__][$module]['MissingColumns'] as $table_name => $columns) {
+								foreach($columns as $column_name => $column_definition) {
+									$db->add_table_column($table_name, $column_name, $column_definition);
+								}
+							}
+							unset($_SESSION[__CLASS__][$module]['MissingColumns']);
+							$cache = caching::get_site_cacher('Tables')->deleteAllModuleCache();
+							layout::set_message("Successfully added missing columns.","success");
+							return;
+						case 'CreateMissingIndexes':
+							foreach($_SESSION[__CLASS__][$module]['MissingIndexes'] as $table_name => $missing_indexes) {
+								foreach($missing_indexes as $key_type => $keys) {
+									if ($key_type == 'PRIMARY') {
+										$db->add_table_key($table_name,$key_type,$keys);
+									} elseif ($key_type == 'FOREIGN') {
+										foreach($keys as $column_name => $fk_definition) {
+											$db->add_table_key($table_name,$key_type,array($column_name),$fk_definition);
+										}
+									} else {
+										foreach($keys as $key_columns) {
+											$db->add_table_key($table_name,$key_type,$key_columns);
+										}
+									}
+								}
+							}
+							unset($_SESSION[__CLASS__][$module]['MissingIndexes']);
+							$cache = caching::get_site_cacher('Tables')->deleteAllModuleCache();
+							layout::set_message("Successfully added missing indexes.","success");
+							return;
+					}
+				}
+
+				layout::set_message("$action POST functionality has not been implemented yet.",'error');
+
+
+				return;
+			} else {
+				if (!$user->check_right('Modules','Administer', "Administer $module")) return false;
+				$helper = module::get_module_helpers(module::get_module_id($module),'admin');
+
+				$class_name = module::get_module_class($module);
+				if ($class_name===false) return false;
+				return call_user_func_array(array($helper['admin']['CLASS_NAME'],'post'),array($args,$request));
+			}
 		}
 	}
 
@@ -103,6 +219,14 @@ class modules extends module {
 		}
 	}
 
+	public static function display_slug($slug,$row) {
+		return is_null($slug) ? $row['NAME'] : $slug;
+	}
+
+	public static function get_admin_link($module) {
+		return '<a href="'.static::get_module_url().$module.'">'.$module.'</a>';
+	}
+
 	private static function view_main() {
 		global $db,$local;
 		$output = array(
@@ -111,6 +235,30 @@ class modules extends module {
 			'css' => array()
 		);
 		$user = users::get_session_user();
+
+		/* List Modules, with links to Check Tables, Keys, Required Rights... */
+		$query = "
+			SELECT NAME,SLUG
+			FROM _MODULES
+		";
+		$params = "";
+		$modules_table = new pagingtable_widget($query);
+		$modules_table->set_columns(array(
+			array("column" => "NAME", "display_name" => "Module Name", "display_function" => array(__CLASS__,"get_admin_link")),
+			array("column" => "SLUG", "display_name" => "Slug", "display_function" => array(__CLASS__,"display_slug")),
+			array("column" => "NAME", "display_name" => "", "display_format" => '<a href="'.static::get_module_url().'checkRights/%s">Check Rights</a>'),
+			array("column" => "NAME", "display_name" => "", "display_format" => '<a href="'.static::get_module_url().'checkTables/%s">Check Tables</a>'),
+		));
+
+		$paging_output = $modules_table->build_table();
+		foreach($paging_output as $type => $out) {
+			if ($type == 'html') {
+				$output[$type] .= $out;
+			} else {
+				$output[$type] = array_merge($output[$type],$out);
+			}
+		}
+
 		/* Install Module */
 		$output['html'] .= "
 			<h2>Install New Module</h2>
@@ -126,47 +274,6 @@ class modules extends module {
 		$query = "SELECT CLASS_NAME FROM _MODULES";
 		$modules = utilities::group_numeric_by_key($db->run_query($query),'CLASS_NAME');
 		$required_rights = array();
-
-		/* This will need to be rewritten to allow for <RIGHT> = array('description' => '<description>', 'default_groups' => array(<DEFAULT GROUPS>))*/
-		foreach($modules as $class) {
-			$required_rights = array_merge_recursive($required_rights,call_user_func(array($class,'required_rights')));
-		}
-		foreach($required_rights as $module=>$types) {
-			foreach($types as $type=>$rights) {
-				foreach($rights as $right=>$right_info) {
-					if (users::get_right_id($module,$type,$right)!==false) unset($required_rights[$module][$type][$right]);
-				}
-				if (empty($required_rights[$module][$type])) unset($required_rights[$module][$type]);
-			}
-			if (empty($required_rights[$module])) unset($required_rights[$module]);
-		}
-		if (!empty($required_rights)) {
-			$query = "SELECT ID,NAME FROM _GROUPS";
-			$groups = utilities::group_numeric_by_key($db->run_query($query),'ID');
-
-			array_push($output['script'],
-				"{$local}script/jquery.min.js",
-				"{$local}script/jquery-ui.min.js",
-				utilities::get_public_location(__DIR__ . '/js/create-module-rights.js'),
-				"var groups = ".json_encode($groups,true).";");
-			$output['css'][] = "{$local}style/jquery-ui.css";
-			$output['html'] .= "
-			<h2>Install Missing Rights</h2>
-			<p>The following right(s) are not defined in the system, but should be.  Please assign the following rights:</p>
-			<form class='assign-right'>
-			";
-			$required_rights = utilities::make_html_safe($required_rights,ENT_QUOTES);
-			foreach($required_rights as $module=>$types) {
-				$output['html'] .= "<h5>$module</h5><ul>";
-				foreach($types as $type=>$rights) {
-					foreach($rights as $right=>$right_info) {
-						$output['html'] .= "<li><button module='$module' type='$type' right='".utilities::make_html_safe($right,ENT_QUOTES)."' title='{$right_info['description']}'>$type / $right</button></li>";
-					}
-				}
-				$output['html'] .= "</ul>";
-			}
-			$output['html'] .= "</form>";
-		}
 
 		// search for uninstalled modules...
 		$module_files = utilities::recursive_glob('*.module');
@@ -202,6 +309,271 @@ MODULE;
 		return $output;
 	}
 
+	private static function view_check_rights($module) {
+		global $db;
+
+		$user = users::get_session_user();
+
+		/* Confirm User has rights for this... */
+		if (!$user->check_right('Users','Rights','Create Rights') && !$user->check_right('Users', 'Rights', 'Assign Rights')) {
+			header("Location: " . static::get_module_url());
+			exit();
+			return;
+		}
+
+		$output = array(
+			'html' => "<h2>{$module} Module Rights</h2>",
+			'css' => ".table-body-header {font-weight: bold; text-align: center; background: grey;}",
+			'script' => array()
+		);
+
+		$the_module = self::get_module_by_name($module);
+		$required_rights = call_user_func_array(array($the_module->CLASS_NAME,'required_rights'),array());
+
+		if (empty($required_rights)) {
+			$output['html'] .= "<p>This module has no rights.</p>";
+			$output['html'] .= "<p><a href='".modules::get_module_url()."'>&lt;&lt;Back</a></p>";
+			return $output;
+		}
+		$missing_rights = array();
+		$current_rights = array();
+		foreach($required_rights as $module => $right_types) {
+			foreach($right_types as $right_type => $rights) {
+				foreach($rights as $right_name => $right) {
+					$right_id = users::get_right_id($module,$right_type,$right_name);
+					if ($right_id !== false) {
+						$current_rights[$module][$right_type][$right_name] = $right_id;
+						$_SESSION[__CLASS__][$module]['moduleRightsList'][$right_id] = true;
+					} else {
+						$missing_rights[$module][$right_type][$right_name] = $right;
+					}
+				}
+			}
+		}
+
+		$all_groups = users::get_groups();
+		foreach($all_groups as &$group) {
+			$group['rights'] = users::get_group_rights($group['ID']);
+		}
+		unset($group);
+
+		$output['html'] .= "<form action='' method='post'>";
+		if ($user->check_right('Users', 'Rights', 'Assign Rights')) {
+			$output['html'] .= "<h3>Existing Rights</h3>";
+			$output['html'] .= "<table><thead><tr>";
+			$output['html'] .= "<th></th><th>Right</th>";
+			foreach($all_groups as $group) {
+				$output['html'] .= "<th>{$group['NAME']}</th>";
+			}
+			$output['html'] .= "</tr></thead><tbody>";
+
+			foreach($current_rights as $module => $right_types) {
+				$output['html'] .= "<tr class='table-body-header'><td colspan='100%'>{$module}</td></tr>";
+				foreach($right_types as $right_type => $rights) {
+					$output['html'] .= "<tr><td class='table-body-header' rowspan='".count($rights)."'>{$right_type}</td>";
+					$open_row = true;
+					foreach($rights as $right_name => $right_id) {
+						if (!$open_row) {
+							$output['html'] .= "<tr>";
+							$open_row = false;
+						}
+						$output['html'] .= "<td>{$right_name}</td>";
+						foreach($all_groups as $group) {
+							$checked = in_array($right_id,$group['rights']) ? 'checked="checked"' : '';
+							$output['html'] .= "<td><input type='checkbox' name='rightGroups[$right_id][]' value='{$group['ID']}' $checked /></td>";
+						}
+						$output['html'] .= "</tr>";
+					}
+				}
+			}
+			$output['html'] .= "</tbody></table>";
+		}
+
+		if ($missing_rights && $user->check_right('Users', 'Rights', 'Create Rights')) {
+			$output['html'] .= "<h3>Missing Rights</h3>";
+			$output['html'] .= "<p>These permissions are required by the {$module} module, but don't exist in the system yet.  Assign them here.</p>";
+			$output['html'] .= "<table><thead><tr>";
+			$output['html'] .= "<th></th><th>Right</th>";
+			foreach($all_groups as $group) {
+				$output['html'] .= "<th>{$group['NAME']}</th>";
+			}
+			$output['html'] .= "</tr></thead><tbody>";
+
+			foreach($missing_rights as $module => $right_types) {
+				$output['html'] .= "<tr class='table-body-header'><td colspan='100%'>{$module}</td></tr>";
+				foreach($right_types as $right_type => $rights) {
+					$output['html'] .= "<tr><td class='table-body-header' rowspan='".count($rights)."'>{$right_type}</td>";
+					$open_row = true;
+					foreach($rights as $right_name => $right_info) {
+						if (!$open_row) {
+							$output['html'] .= "<tr>";
+							$open_row = false;
+						}
+						$output['html'] .= "<td><strong>{$right_name}</strong><br /><em>{$right_info['description']}</em></td>";
+						foreach($all_groups as $group) {
+							$checked = in_array($group['NAME'],$right_info['default_groups']) ? 'checked="checked"' : '';
+							$name_description_string = serialize(array($right_type,$right_name,$right_info['description']));
+							$output['html'] .= "<td><input type='checkbox' name='rightGroups[new][{$name_description_string}][]' value='{$group['ID']}' $checked /></td>";
+						}
+						$output['html'] .= "</tr>";
+					}
+				}
+			}
+			$output['html'] .= "</table>";
+		}
+
+		$output['html'] .= "<p><input type='submit' value='Save Rights' /></p>";
+
+		$output['html'] .= "</form>";
+		$output['html'] .= "<p><a href='".modules::get_module_url()."'>&lt;&lt;Back</a></p>";
+		return $output;
+	}
+
+	private static function view_check_tables($module) {
+		$user = users::get_session_user();
+		/* Confirm User has rights for this... */
+		if (!$user->check_right('Tables','Table Actions','Add Table')) {
+			header("Location: " . static::get_module_url());
+			exit();
+			return;
+		}
+
+		$output = array(
+		'html' => "<h2>{$module} Module Tables</h2>",
+		'script' => array()
+		);
+
+		$the_module = self::get_module_by_name($module);
+		$required_tables = call_user_func_array(array($the_module->CLASS_NAME,'required_tables'),array());
+
+		if (empty($required_tables)) {
+			$output['html'] .= "<p>This module has no required tables.</p>";
+			return $output;
+		}
+
+		$missing_tables = array();
+		$missing_columns = array();
+		$missing_indexes = array();
+		foreach($required_tables as $table_name => $table_definition) {
+			// does table exist?
+			if (tables::is_table($table_name)) {
+				$table = new tables($table_name);
+				$current_columns = utilities::group_numeric_by_key($table->get_columns(),'COLUMN_NAME');
+				$current_keys = tables::get_table_keys($table_name);
+
+				// do columns exist?
+				foreach($table_definition['columns'] as $column_name => $column_definition) {
+					if (!isset($current_columns[$column_name])) {
+						// column missing
+						$missing_columns[$table_name][$column_name] = $column_definition;
+					}
+				}
+
+				// do keys exist?
+				foreach($table_definition['keys'] as $key_type => $keys) {
+					if ($key_type == 'PRIMARY') {
+						if (!isset($current_keys[$key_type]) || serialize($current_keys[$key_type]) != serialize($keys)) {
+							$missing_indexes[$table_name][$key_type] = $keys;
+						}
+					} elseif ($key_type == 'FOREIGN') {
+						foreach($keys as $column => $fk_definition) {
+							ksort($fk_definition);
+							ksort($current_keys[$key_type][$column]);
+							if (!isset($current_keys[$key_type][$column]) || serialize($current_keys[$key_type][$column]) != serialize($fk_definition)) {
+								$missing_indexes[$table_name][$key_type][$column] = $fk_definition;
+							}
+						}
+					} else {
+						// may or may not be unique
+						foreach($keys as $key_columns) {
+							$serializedDefinition = serialize($key_columns);
+							$key_found = false;
+
+							if (isset($current_keys[$key_type])) {
+								foreach($current_keys[$key_type] as $key_definition) {
+									if (serialize($key_definition) == $serializedDefinition) {
+										$key_found = true;
+										break;
+									}
+								}
+							}
+
+							if (!$key_found) {
+								$missing_indexes[$table_name][$key_type][] = $key_columns;
+							}
+						}
+					}
+				}
+			} else {
+				// table doesn't exist - output table information...
+				$missing_tables[$table_name] = $table_definition;
+			}
+		}
+
+		$output['html'] .= "<form method='post' action=''>";
+
+		if ($missing_tables) {
+			$_SESSION[__CLASS__][$the_module->NAME]['MissingTables'] = $missing_tables;
+			$output['html'] .= "<h3>Missing Tables:</h3><ul>";
+			foreach($missing_tables as $table_name => $table_definition) {
+				$output['html'] .= "<li>{$table_name}</li>";
+			}
+			$output['html'] .= "</ul>";
+
+			$output['html'] .= "<button type='submit' name='checkTableAction' value='CreateMissingTables'>Create Missing Tables</button>";
+		}
+
+		if ($missing_columns) {
+			$_SESSION[__CLASS__][$the_module->NAME]['MissingColumns'] = $missing_columns;
+			$output['html'] .= "<h3>Missing Columns:</h3><ul>";
+			foreach($missing_columns as $table_name => $table_columns) {
+				$output['html'] .= "<li>{$table_name}<ul>";
+				foreach($table_columns as $column_name => $column_definition) {
+					$output['html'] .= "<li>{$column_name}</li>";
+				}
+				$output['html'] .= "</ul></li>";
+			}
+			$output['html'] .= "</ul>";
+
+			$output['html'] .= "<button type='submit' name='checkTableAction' value='CreateMissingColumns'>Create Missing Columns</button>";
+		}
+
+		if ($missing_indexes) {
+			$_SESSION[__CLASS__][$the_module->NAME]['MissingIndexes'] = $missing_indexes;
+			$output['html'] .= "<h3>Missing Indexes:</h3><ul>";
+			foreach($missing_indexes as $table_name => $key_types) {
+				$output['html'] .= "<li>{$table_name}<ul>";
+				foreach($key_types as $key_type => $keys) {
+					$output['html'] .= "<li>{$key_type} KEY(s) ON:<ul>";
+					if ($key_type == 'PRIMARY') {
+						$output['html'] .= "<li>".implode(",",$keys)."</li>";
+					} elseif ($key_type == 'FOREIGN') {
+						foreach($keys as $key_column => $fk_definition) {
+							$output['html'] .= "<li>$key_column (REFERENCES {$fk_definition['table']})</li>";
+						}
+					} else {
+						foreach($keys as $key_definition) {
+							$output['html'] .= "<li>".implode(",",$key_definition)."</li>";
+						}
+					}
+					$output['html'] .= "</ul></li>";
+				}
+				$output['html'] .= "</ul></li>";
+			}
+			$output['html'] .= "</ul>";
+
+			$output['html'] .= "<button type='submit' name='checkTableAction' value='CreateMissingIndexes'>Create Missing Indexes</button>";
+		}
+
+		$output['html'] .= "</form>";
+		if (empty($missing_tables) && empty($missing_columns) && empty($missing_indexes)) {
+			$output['html'] .= "<p>Table definitions are up to date.</p>";
+		}
+		$output['html'] .= "<p><a href='".modules::get_module_url()."'>&lt;&lt;Back</a></p>";
+
+		return $output;
+	}
+
 	/* What to do for standard views... */
 	public static function view() {
 		global $db,$local;
@@ -219,6 +591,12 @@ MODULE;
 		}
 		else {
 			$module = array_shift($args);
+			if ($module == 'checkRights') {
+				return self::view_check_rights(array_shift($args));
+			} elseif ($module == 'checkTables') {
+				return self::view_check_tables(array_shift($args));
+			}
+
 			/* Confirm User has rights for this... */
 			if (!$user->check_right('Modules','Administer',"Administer $module")) {
 				header("Location: " . static::get_module_url());
@@ -317,6 +695,7 @@ MODULE;
 			);
 		return $required;
 	}
+	public static function required_tables() { return array(); }
 
 	public static function get_all_modules()
 	{

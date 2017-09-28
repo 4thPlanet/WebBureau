@@ -13,47 +13,47 @@ class tables_admin extends tables {
 	protected static function create_table($table_data) {
 		global $db, $s_user;
 		if (!$s_user->check_right('Tables','Table Actions','Add Table')) return;
-
+		// rewrite this function - these are the default properties for each field:
+		/*
+		 *
+		 * array('is-primary-key' => '',
+		 * 'not-null' => '',
+		 * 'auto-increment' => '',
+		 * 'is_foreign_key' => 0,
+		 * 'max-length' => '')
+		 *
+		 * if is_foreign_key, then check reference-table property for table it's meant to reference, and grab the PK for the field...
+		 * */
 		$table_name = $table_data['table-name'];
-		if (!preg_match('/^\d*[a-zA-Z]\w*/',$table_name)) {
-			Layout::set_message('Invalid Table Name','error');
-			return;
-		}
-		if (empty($table_data['fields'])) {
-			Layout::set_message('At least one field must be present.','error');
-			return;
-		}
-		$primary_keys = array();
-		$foreign_keys = array();
-		$query = "CREATE TABLE $table_name (";
+		$columns = array();
+		$keys = array();
+		foreach($table_data['fields'] as $column_name => $column_properties) {
+			$column_definition = $column_properties['field-type'];
 
-		foreach($table_data['fields'] as $field=>$properties) {
-			if (!preg_match('/^\d*[a-zA-Z]\w*/',$field)) {
-				Layout::set_message("$field is an invalid field name",'error');
-				return;
+			if (isset($column_properties['max-length']))
+				$column_definition .= "({$column_properties['max-length']})";
+
+			if (isset($column_properties['is-primary-key']) && $column_properties['is-primary-key'])
+				$keys['PRIMARY'][] = $column_name;
+
+			if (isset($column_properties['not-null']) && $column_properties['not-null'])
+				$column_definition .= " NOT NULL";
+
+			if (isset($column_properties['auto-increment']) && $column_properties['auto-increment'])
+				$column_definition .= " AUTO_INCREMENT";
+
+			if (isset($column_properties['is_foreign_key']) && $column_properties['is_foreign_key']) {
+				// get PK of reference-table...
+				$fk_table = new tables($column_properties['reference-table']);
+				$fk_key = $fk_table->get_key();
+				$keys['FOREIGN'][$column_name] = array('table' => $column_properties['reference-table'],'column' => $fk_key[0]['COLUMN_NAME']);
+
 			}
 
-			$properties = array_merge(array('is-primary-key' => '', 'not-null' => '', 'auto-increment' => '', 'is_foreign_key' => 0, 'max-length' => ''), $properties);
-			if (!empty($properties['max-length'])) {
-				$properties['max-length'] = "({$properties['max-length']})";
-			}
+			$columns[$column_name] = $column_definition;
+		}
 
-			$query .= "$field {$properties['field-type']}{$properties['max-length']} {$properties['not-null']} {$properties['auto-increment']},";
-			if ($properties['is-primary-key'])
-				$primary_keys[] = $field;
-			if ($properties['is_foreign_key']) {
-				$PK = static::get_primary_key($properties['reference-table']);
-				$foreign_keys[$field] = array('TABLE_NAME' => $properties['reference-table'], 'COLUMN_NAME' => $PK[0]['COLUMN_NAME']);
-			}
-		}
-		$query .= "PRIMARY KEY (".implode(",",$primary_keys).")";
-		if (!empty($foreign_keys)) {
-			foreach($foreign_keys as $fkey=>$reference) {
-				$query .= ", FOREIGN KEY ($fkey) REFERENCES {$reference['TABLE_NAME']}({$reference['COLUMN_NAME']})";
-			}
-		}
-		$query .= ")  ENGINE=INNODB;";
-		$result = $db->run_query($query);
+		$db->create_table($table_name, $columns, $keys);
 
 		if (!static::is_table($table_name)) {
 			Layout::set_message(print_r($db->GetErrors(),true),"error");

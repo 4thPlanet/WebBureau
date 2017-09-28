@@ -238,6 +238,9 @@ class paging extends module {
 	}
 	public static function menu() {return false;}	//no need for it to be used in a menu
 	public static function view() {return false;}	//there is no actual view method
+
+	public static function required_rights() { return array(); }
+	public static function required_tables() { return array(); }
 }
 
 ?>

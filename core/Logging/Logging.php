@@ -10,16 +10,6 @@ class logging extends module {
 
 	public static function install() {
 		global $db;
-		$query = "
-			CREATE TABLE IF NOT EXISTS _LOG_MESSAGE_TYPES (
-				ID int auto_increment,
-				NAME varchar(32),
-				PRIORITY int,
-				PRIMARY KEY (ID),
-				UNIQUE(NAME)
-			);
-		";
-		$db->run_query($query);
 
 		$query = "
 			INSERT INTO _LOG_MESSAGE_TYPES ( NAME, PRIORITY )
@@ -37,39 +27,63 @@ class logging extends module {
 			array("type" => "i", "value" => 50),
 		);
 		$db->run_query($query,$params);
-
-		$query = "
-			CREATE TABLE IF NOT EXISTS _LOG(
-				ID int auto_increment,
-				LOG_DATE datetime,
-				LOG_MESSAGE_TYPE_ID int,
-				REQUEST_URI varchar(256),
-				CLASS varchar(64),
-				FUNCTION varchar(128),
-				MESSAGE text,
-				PRIMARY KEY (ID),
-				FOREIGN KEY (LOG_MESSAGE_TYPE_ID) REFERENCES _LOG_MESSAGE_TYPES (ID),
-				INDEX(REQUEST_URI),
-				INDEX(CLASS,FUNCTION)
-			);
-		";
-		$db->run_query($query);
 		$db->trigger('log_date', 'BEFORE INSERT', '_LOG', 'SET NEW.LOG_DATE = IFNULL(NEW.LOG_DATE,NOW())');
-
-		$query = "
-			CREATE TABLE IF NOT EXISTS _LOG_BACKTRACE(
-				LOG_ID int,
-				REQUEST_METHOD varchar(16),
-				BACKTRACE text,
-				REQUEST text,
-				PRIMARY KEY (LOG_ID),
-				FOREIGN KEY (LOG_ID) REFERENCES _LOG(ID)
-			)
-		";
-		$db->run_query($query);
 
 		static::set_module_setting('Logging', 'Log Location', 'Database');
 		return true;
+	}
+
+	public static function required_tables() {
+		return array(
+			'_LOG_MESSAGE_TYPES' => array(
+				'columns' => array(
+					'ID' => 'int auto_increment',
+					'NAME' => 'varchar(32)',
+					'PRIORITY' => 'int',
+				),
+				'keys' => array(
+					'PRIMARY' => array('ID'),
+					'UNIQUE' => array(
+						array('NAME')
+					)
+				)
+			),
+			'_LOG' => array(
+				'columns' => array(
+					'ID' => 'int auto_increment',
+					'LOG_DATE' => 'datetime',
+					'LOG_MESSAGE_TYPE_ID' => 'int',
+					'REQUEST_URI' => 'varchar(256)',
+					'CLASS' => 'varchar(64)',
+					'FUNCTION' => 'varchar(128)',
+					'MESSAGE' => 'text'
+				),
+				'keys' => array(
+					'PRIMARY' => array('ID'),
+					'FOREIGN' => array(
+						'LOG_MESSAGE_TYPE_ID' => array('table' => '_LOG_MESSAGE_TYPES','column' => 'ID')
+					),
+					'' => array(
+						array('REQUEST_URI'),
+						array('CLASS','FUNCTION')
+					)
+				)
+			),
+			'_LOG_BACKTRACE' => array(
+				'columns' => array(
+					'LOG_ID' => 'int',
+					'REQUEST_METHOD' => 'varchar(16)',
+					'BACKTRACE' => 'text',
+					'REQUEST' => 'text'
+				),
+				'keys' => array(
+					'PRIMARY' => array('LOG_ID'),
+					'FOREIGN' => array(
+						'LOG_ID' => array('table' => '_LOG','column' => 'ID')
+					)
+				)
+			)
+		);
 	}
 	public static function view() { return false; }
 	public static function menu() { return false; }

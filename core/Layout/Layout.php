@@ -14,14 +14,8 @@ class layout extends module {
 		layout_main_content::install();
 		layout_static_block::install();
 
-		$query = "CREATE TABLE IF NOT EXISTS _AREAS (
-			ID int AUTO_INCREMENT,
-			AREA_NAME VARCHAR(20),
-			DESCRIPTION VARCHAR(100),
-			HTML_ORDER INT,
-			PRIMARY KEY (ID)
-		);";
-		$db->run_query($query);
+		// required tables...
+
 		$query = "
 			INSERT INTO _AREAS (AREA_NAME, DESCRIPTION, HTML_ORDER)
 			SELECT tmp.AREA_NAME, tmp.DESCRIPTION, tmp.HTML_ORDER FROM (
@@ -36,38 +30,6 @@ class layout extends module {
 			ORDER BY tmp.HTML_ORDER;";
 		$db->run_query($query);
 
-		$query = "CREATE TABLE IF NOT EXISTS _LAYOUT (
-			ID int AUTO_INCREMENT,
-			AREA_ID int,
-			WIDGET_ID int,
-			DISPLAY_ORDER int,
-			BLACKLIST_RESTRICTED bit(1),
-			ARGUMENTS varchar(256),
-			PRIMARY KEY (ID),
-			FOREIGN KEY (AREA_ID) REFERENCES _AREAS(ID),
-			FOREIGN KEY (WIDGET_ID) REFERENCES _WIDGETS(ID)
-		);";
-		$db->run_query($query);
-
-		$query = "CREATE TABLE IF NOT EXISTS _LAYOUT_RESTRICTIONS (
-			ID int AUTO_INCREMENT,
-			LAYOUT_ID int,
-			MODULE_ID int,
-			PRIMARY KEY (ID),
-			FOREIGN KEY (LAYOUT_ID) REFERENCES _LAYOUT(ID) ON DELETE CASCADE ON UPDATE CASCADE,
-			FOREIGN KEY (MODULE_ID) REFERENCES _MODULES(ID) ON DELETE CASCADE ON UPDATE CASCADE
-		)";
-		$db->run_query($query);
-
-		$query = "CREATE TABLE IF NOT EXISTS _LAYOUT_STATIC_HTML (
-			ID int auto_increment,
-			IDENTIFIER varchar(32),
-			HTML text,
-			PRIMARY KEY (ID),
-			UNIQUE KEY (identifier)
-		)";
-		$db->run_query($query);
-
 		$query = "INSERT INTO _LAYOUT (AREA_ID, WIDGET_ID, DISPLAY_ORDER)
 		SELECT A.ID, W.ID, 0
 		FROM _LAYOUT L
@@ -76,6 +38,66 @@ class layout extends module {
 		WHERE A.AREA_NAME = 'main-content' AND L.ID IS NULL";
 		$db->run_query($query);
 		return true;
+	}
+
+	public static function required_tables() {
+		return array(
+			'_AREAS' => array(
+				'columns' => array(
+					'ID' => 'int auto_increment',
+					'AREA_NAME' => 'varchar(20)',
+					'DESCRIPTION' => 'varchar(100)',
+					'HTML_ORDER' => 'int',
+				),
+				'keys' => array(
+					'PRIMARY' => array('ID')
+				)
+			),
+			'_LAYOUT' => array(
+				'columns' => array(
+					'ID' => 'int auto_increment',
+					'AREA_ID' => 'int',
+					'WIDGET_ID' => 'int',
+					'DISPLAY_ORDER' => 'int',
+					'BLACKLIST_RESTRICTED' => 'int',
+					'ARGUMENTS' => 'varchar(256)'
+				),
+				'keys' => array(
+					'PRIMARY' => array('ID'),
+					'FOREIGN' => array(
+						'AREA_ID' => array('table' => '_AREAS','column' => 'ID'),
+						'WIDGET_ID' => array('table' => '_WIDGETS','column' => 'ID'),
+					)
+				)
+			),
+			'_LAYOUT_RESTRICTIONS' => array(
+				'columns' => array(
+					'ID' => 'int auto_increment',
+					'LAYOUT_ID' => 'int',
+					'MODULE_ID' => 'int'
+				),
+				'keys' => array(
+					'PRIMARY' => array('ID'),
+					'FOREIGN' => array(
+						'LAYOUT_ID' => array('table' => '_LAYOUT','column' => 'ID','delete' => 'CASCADE','update' => 'CASCADE'),
+						'MODULE_ID' => array('table' => '_MODULES','column' => 'ID','delete' => 'CASCADE','update' => 'CASCADE'),
+					)
+				)
+			),
+			'_LAYOUT_STATIC_HTML' => array(
+				'columns' => array(
+					'ID' => 'int auto_increment',
+					'IDENTIFIER' => 'varchar(32)',
+					'HTML' => 'text',
+				),
+				'keys' => array(
+					'PRIMARY' => array('ID'),
+					'UNIQUE' => array(
+						array('IDENTIFIER')
+					)
+				)
+			)
+		);
 	}
 	public static function uninstall() {return false;}
 

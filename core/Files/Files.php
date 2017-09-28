@@ -2,16 +2,7 @@
 class files extends module {
 	public static function install() {
 		global $db;
-		$query = "
-			CREATE TABLE IF NOT EXISTS _FILES (
-				ID int auto_increment,
-				FILENAME varchar(100),
-				TITLE varchar(100),
-				DESCRIPTION varchar(1000),
-				UPLOAD_DATE datetime,
-				PRIMARY KEY (ID)
-			);";
-		$db->run_query($query);
+		//install required_table..
 		$db->trigger('file_upload_date','BEFORE INSERT','_FILES','SET NEW.UPLOAD_DATE = IFNULL(NEW.UPLOAD_DATE,NOW())');
 
 		require_once(__DIR__ . '/Files_DragDrop.widget.php');
@@ -110,6 +101,25 @@ class files extends module {
 					'View File' => array('description' => 'Allows a user to view an uploaded file.', 'default_groups' => array('Registered User')),
 					'Delete File' => array('description' => 'Allows a user to delete an uploaded file.', 'default_groups' => array('Admin')),
 					'Edit File' => array('description' => 'Allows a user to edit an uploaded file description.', 'default_groups' => array('Admin'))
+				)
+			)
+		);
+	}
+	public static function required_tables() {
+		return array(
+			'_FILES' => array(
+				'columns' => array(
+					'ID' => 'int auto_increment',
+					'FILENAME' => 'varchar(100)',
+					'TITLE' => 'varchar(100)',
+					'DESCRIPTION' => 'text',
+					'UPLOAD_DATE' => 'datetime'
+				),
+				'keys' => array(
+					'PRIMARY' => array('ID'),
+					'UNIQUE' => array(
+						array('FILENAME')
+					)
 				)
 			)
 		);

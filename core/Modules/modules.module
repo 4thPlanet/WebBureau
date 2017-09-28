@@ -4,6 +4,6 @@
 	"Core" : 1,
 	"Filename" : "Modules.php",
 	"Class" : "modules",
-	"Requires" : ["Users"],
+	"Requires" : ["Users","Tables","Paging"],
 	"Install Order" : 1000
 }

@@ -453,6 +453,9 @@ class utilities extends module {
  		}
  		return str_replace($find,$replace,$string);
  	}
+
+ 	public static function required_rights() {return array();}
+ 	public static function required_tables() {return array();}
 }
 
 spl_autoload_register(array('utilities','module_widget_autoload'));

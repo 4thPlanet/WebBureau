@@ -143,5 +143,8 @@ class layout_wide extends layout {
 </html>
 		<?php
 	}
+
+	public static function required_rights() { return array(); }
+	public static function required_tables() { return array(); }
 }
 ?>
