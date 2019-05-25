@@ -222,7 +222,8 @@ $(function() {
 			.menu({
 				position: { my: "left center", at: "right-5 top+5" }
 			});
-		$menu.on('click','a',function() {
+		$menu.on('click','a',function(e) {
+			e.preventDefault();
 			$area = $(this).text();
 			$('.layout.'+$area + ' .widgets').append($widget);
 			$widget.find('.setup').click();
