@@ -664,8 +664,7 @@ class tables extends module {
 					'SLUG' => 'varchar(100)',
 					'SHORT_DISPLAY' => 'varchar(50)',
 					'PREVIEW_DISPLAY' => 'varchar(500)',
-					'PREVIEW_DISPLAY_BEFORE' => 'text',
-					'PREVIEW_DISPLAY_AFTER' => 'text',
+					'PREVIEW_DISPLAY_WRAP' => 'text',
 					'FULL_DISPLAY' => 'text',
 					'LINK_BACK_TO_TABLE' => 'bit',
 					'LINK_TO_ALL_TABLES' => 'bit',
@@ -1092,18 +1091,23 @@ class tables extends module {
 			}
 		} else {
 			$paging = new paging($query,$params);
+			if ($table_info['DEFAULT_ORDER']) {
+			    $paging->set_order($table_info['DEFAULT_ORDER']);
+			}
 			$paging->set_per_page(empty($table_info['ROW_DISPLAY_MAX']) ? 10 : $table_info['ROW_DISPLAY_MAX']);
 			if (isset($_REQUEST['page'])) {
 				$paging->goto_page($_REQUEST['page']);
 			}
 			$data = $paging->get_current_page();
-
-			$output['html'] .= $table_info['PREVIEW_DISPLAY_BEFORE'];
+			
+			$recordHtml = "";
 			foreach($data as $row) {
-				$output['html'] .= static::decode_display($table_info['PREVIEW_DISPLAY'],static::get_table_columns($table),$row,$table);
+			    $recordHtml .= static::decode_display($table_info['PREVIEW_DISPLAY'],static::get_table_columns($table),$row,$table);
 			}
-			$output['html'] .= $table_info['PREVIEW_DISPLAY_AFTER'];
-
+			
+			$output['html'] .= $table_info['PREVIEW_DISPLAY_WRAP'] ? str_replace('{RECORD}',$recordHtml,$table_info['PREVIEW_DISPLAY_WRAP']) : $recordHtml;
+			
+			
 			if ($paging->get_page_count() > 1)
 			{
 				$output['html'] .= "<p id='page-navigation'>";

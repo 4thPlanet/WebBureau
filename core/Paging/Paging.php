@@ -70,11 +70,12 @@ class paging extends module {
 			$condition = "1=1";
 		}
 		if (!empty($this->order_by)) {
-			$order = "ORDER BY 1";
+			$orderParts = array();
 			foreach($this->order_by as $order_column) {
 				if (!empty($order_column['column']))
-					$order .= ",{$order_column['column']} {$order_column['direction']}";
+					$orderParts[] = "{$order_column['column']} {$order_column['direction']}";
 			}
+			$order = "ORDER BY " . implode(", ", $orderParts);
 		} else {
 			$order = "";
 		}
@@ -87,6 +88,7 @@ class paging extends module {
 			$order
 			LIMIT {$this->per_page} OFFSET $offset
 		";
+			
 		return $db->run_query($query,$params);
 	}
 
@@ -180,7 +182,12 @@ class paging extends module {
 
 	public function set_order($order)
 	{
-		$this->order_by = $order;
+	    if (is_string($order)) {
+	        $this->order_by = array(array('column' => $order));
+	    } else {
+	        $this->order_by = $order;
+	    }
+	    
 		$this->goto_page(1);
 	}
 

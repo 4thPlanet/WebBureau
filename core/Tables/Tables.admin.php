@@ -404,9 +404,8 @@ class tables_admin extends tables {
 			$table_info = array_fill_keys(array(
 				'SLUG',
 				'SHORT_DISPLAY',
-				'PREVIEW_DISPLAY_BEFORE',
+				'PREVIEW_DISPLAY_WRAP',
 				'PREVIEW_DISPLAY',
-				'PREVIEW_DISPLAY_AFTER',
 				'FULL_DISPLAY',
 				'ROW_DISPLAY_MAX',
 				'LINK_BACK_TO_TABLE',
@@ -481,18 +480,13 @@ class tables_admin extends tables {
 					</tr>
 					<tr>
 						<td>Preview Display (Before):</td>
-						<td><input type="checkbox" class="null" id="PREVIEW_DISPLAY_BEFORE_null" name="PREVIEW_DISPLAY_BEFORE_null" value="1" {$null_cbs['PREVIEW_DISPLAY_BEFORE']} /></td>
-						<td><textarea name="PREVIEW_DISPLAY_BEFORE">{$table_info['PREVIEW_DISPLAY_BEFORE']}</textarea></td>
+						<td><input type="checkbox" class="null" id="PREVIEW_DISPLAY_WRAP_null" name="PREVIEW_DISPLAY_WRAP_null" value="1" {$null_cbs['PREVIEW_DISPLAY_WRAP']} /></td>
+						<td><textarea name="PREVIEW_DISPLAY_WRAP">{$table_info['PREVIEW_DISPLAY_WRAP']}</textarea></td>
 					</tr>
 					<tr>
 						<td>Preview Display:</td>
 						<td><input type="checkbox" class="null" id="PREVIEW_DISPLAY_null" name="PREVIEW_DISPLAY_null" value="1" {$null_cbs['PREVIEW_DISPLAY']} /></td>
 						<td><textarea name="PREVIEW_DISPLAY">{$table_info['PREVIEW_DISPLAY']}</textarea></td>
-					</tr>
-					<tr>
-						<td>Preview Display (After):</td>
-						<td><input type="checkbox" class="null" id="PREVIEW_DISPLAY_AFTER_null" name="PREVIEW_DISPLAY_AFTER_null" value="1" {$null_cbs['PREVIEW_DISPLAY_AFTER']} /></td>
-						<td><textarea name="PREVIEW_DISPLAY_AFTER">{$table_info['PREVIEW_DISPLAY_AFTER']}</textarea></td>
 					</tr>
 					<tr>
 						<td>Full Page Display:</td>
