@@ -481,7 +481,7 @@ class users extends module {
 		}
 		$s_user = static::get_session_user();
 		if ($s_user->id() !== $result[0]['ID']) {
-			header("Location: " . static::get_module_url() . "$username");
+			header("Location: " . static::get_module_url() . "$user");
 			exit();
 			return;
 		}
@@ -491,7 +491,7 @@ class users extends module {
 		$output = array('html' => '<h3>Edit User Information</h3>');
 		$output['html'] .= "<form method='post' action=''>";
 		$output['html'] .= "
-				<p><a class='button' href='password'>Change Password</a></p>
+				<p><a class='button' href='".static::get_module_url().$user."/password'>Change Password</a></p>
 				<div>
 					<label for='email'>Email Address</label>
 					<input id='email' name='email' value='{$user_info['EMAIL']}' />
