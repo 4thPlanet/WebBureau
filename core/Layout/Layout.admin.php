@@ -128,11 +128,15 @@ INPUT;
 			)
 		);
 		$site_title = utilities::make_html_safe(static::get_module_setting('Layout','Site Title'),ENT_QUOTES);
+		$site_icon = static::get_module_setting('Layout', 'favicon');
 		$all_icons = resources::get_resources_by_type('icon');
 
 		$icon_options = "";
 		foreach($all_icons as $icon) {
-			$icon_options .= "<option value='{$icon['ID']}'>{$icon['NAME']}</option>";
+		    // selected?
+		    $selected = $icon['ID'] == $site_icon ? 'selected="selected"' : '';
+		    
+			$icon_options .= "<option value='{$icon['ID']}' $selected>{$icon['NAME']}</option>";
 		}
 
 		$output['html'] .= <<<SETTINGS
