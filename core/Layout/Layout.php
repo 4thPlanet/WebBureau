@@ -262,7 +262,7 @@ class layout extends module {
 ?><!DOCTYPE html>
 <html>
 	<head>
-		<title><?echo $page_title?></title>
+		<title><?php echo $page_title?></title>
 		<base href="<?php echo $local;?>" />
 		<?php if ($icon_resource->filename){?>
 		<link rel="shortcut icon" href="<?php echo utilities::get_public_location($icon_resource->filename)?>" />
@@ -342,7 +342,7 @@ class layout extends module {
 				<?php foreach($area_content as $area=>$content) { ?>
 				<div class="<?php echo $area?>">
 					<?php foreach($content['html'] as $idx=>$widget) { ?>
-					<div class="widget <?echo $content['widgets'][$idx]['class'];?>" widget-id="<?echo $content['widgets'][$idx]['ID'];?>">
+					<div class="widget <?php echo $content['widgets'][$idx]['class'];?>" widget-id="<?php echo $content['widgets'][$idx]['ID'];?>">
 						<?php echo $widget ?>
 					</div>
 					<?php } ?>

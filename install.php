@@ -174,7 +174,7 @@ if (empty($_POST['username'])) {
 	<head>
 		<title>Installing system...</title>
 	</head>
-	<body><?
+	<body><?php
 	/* First install the core module module... */
 	echo "Installing the base module...<br />";
 	module::install();
