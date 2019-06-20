@@ -900,7 +900,7 @@ class tables extends module {
 		if (is_null($slug)) $slug = $id;
 
 		$url = static::get_module_url() . $table_slug . utilities::make_url_safe($slug);
-		return "<a href='$url'>$id</a>";
+		return "<a href='".htmlentities($url,ENT_QUOTES)."'>$id</a>";
 	}
 
 	/* Outputs available tables for viewing... */
@@ -1325,13 +1325,12 @@ class tables extends module {
 		}
 
 		// search for inline functions - @<function_name> [<param>] [[<param>]...]@
-
 		if (preg_match_all('/@(?<FUNCTION_NAME>\w[\w\d]+)(?<PARAM_LIST>(\s+[^\s]+)*)@/U',$display,$function_calls,PREG_SET_ORDER)) {
 			$inline_functions = static::inline_functions();
 			foreach($function_calls as $fn_data) {
 				if (empty($inline_functions[$fn_data['FUNCTION_NAME']])) continue;
 
-				preg_match_all('/"([\w\d\s]+)"|([\S]+)/',trim($fn_data['PARAM_LIST']),$param_list);
+				preg_match_all('/"([^"]+)"|([\S]+)/',trim($fn_data['PARAM_LIST']),$param_list);
 
 				$params = $param_list[0];
 				foreach($params as &$param) {
@@ -1344,6 +1343,8 @@ class tables extends module {
 			}
 		}
 
+		// TODO: Add #-# wrapped function calls, for static module calls
+
 		$display = utilities::replace_formatted_string($display,"{","}",$data);
 
 		return $display;
@@ -1352,6 +1353,8 @@ class tables extends module {
 	protected static function inline_functions() {
 		return array(
 			'toUrl' => function($val) { return utilities::get_public_location($val);},
+			'uriEncode' => function() {return rawurlencode(implode(" ",func_get_args()));},
+			'dateFormat' => function($date, $format) {return date($format, strtotime($date)); },
 			'tableRecordUrl' => function($table,$id) {
 				$table = new tables($table);
 				return $table->getRecordLink($id);
