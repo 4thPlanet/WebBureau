@@ -1,4 +1,5 @@
 <?php
+#die('Web Bureau has already been installed.');	// this line will be uncommented on install..
 if (empty($_POST['username'])) {
 ?>
 <html>
@@ -144,7 +145,7 @@ if (empty($_POST['username'])) {
 <'.'?php
 	require_once(__DIR__ . "/Database.php");
 
-	define(\'SITE_SALT\',\''.$site_salt.'\');
+	define(\'SITE_SALT\',\''.$site_salt. "'" . ');
 
 	class clientData extends Database {
         protected static $db_pass = "'.str_replace('"','\"',$_POST['db_password']).'";
@@ -295,4 +296,11 @@ if (empty($_POST['username'])) {
 	))
 		echo "<p>A User account has been successfully set up!</p>";
 	else echo "<p>Something went wrong...<a href='install.php'>Click Here</a> to try again...</p>";
+
+	//finally, disable this script from running again...
+	$killScriptContents = preg_replace('/#die/','die',file_get_contents(__FILE__),1);
+	file_put_contents(__FILE__,$killScriptContents);
+
+
+
 	}?>
