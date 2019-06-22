@@ -129,46 +129,35 @@ class utilities extends module {
 	 public static function decode_url_safe($string) {
 
 	 	$safe = unserialize(self::URL_SAFE_PATTERNS);
-
 	 	$orig = unserialize(self::URL_REPLACE_PATTERNS);
+	 	
+	 	// Escape some characters...
+	 	$escape = array('$','^','(',')');
+	 	$with = array('\$','\^','\(','\)');
+	 	$string = str_replace($escape,$with,$string);
 
 	 	/* Create regex for what each safe component in $string could be... */
 
 	 	foreach ($orig as $idx=>&$pattern) {
-
 	 		$start_end = substr($pattern,0,1) . substr($pattern,-1,1);
-
 	 		if (strcmp($start_end,'//')==0) {
-
 	 			$pattern = substr($pattern,1,strlen($pattern)-2);
-
 	 		}
-
 	 		$pattern = "($pattern|{$safe[$idx]})";
-
 	 	}
 
 	 	/* Turn each $safe pattern into a regex*/
 
 	 	foreach($safe as &$pattern)
-
 	 		$pattern = "/$pattern/";
-
-
 	 		/* Now actually apply those patterns, escaping apostrophes (') in the process... */
 
 	 		if (is_string($string)) {
-
 	 			return "^" . preg_replace($safe,$orig,$string) . "$";
-
 	 		} else {
-
 	 			foreach($string as &$str)
-
-	 				$str = preg_replace($safe,$orig,$str);
-
-	 				return "^$string$";
-
+	 			    $str = preg_replace($safe,$orig,$str);
+ 				return "^$string$";
 	 		}
 	 }
 
