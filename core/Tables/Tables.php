@@ -1361,7 +1361,7 @@ class tables extends module {
 			},
 			'tableRecordLink' => function($table,$id,$text=false) {
 				$table = new tables($table);
-				return "<a href='".$table->getRecordLink($id)."'>".($text?$text:$id)."</a>";
+				return '<a href="'.$table->getRecordLink($id).'">'.($text?$text:$id).'</a>';
 			}
 		);
 	}
