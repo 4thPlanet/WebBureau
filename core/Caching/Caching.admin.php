@@ -66,7 +66,7 @@ class caching_admin extends caching {
 		foreach($all_modules as $module) {
 			$output['html'] .= "<option value='{$module['NAME']}'>{$module['NAME']}</option>";
 		}
-		$output['html'] .= "</select><input type='submit' value='Flush' /></form><form method='post'><p><button name='flush_all_cache' value='1'>Flush ALL Cache</button></p></form>";
+		$output['html'] .= "</select></label><input type='submit' value='Flush' /></form><form method='post'><p><button name='flush_all_cache' value='1'>Flush ALL Cache</button></p></form>";
 		return $output;
 	}
 }
