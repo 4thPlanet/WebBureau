@@ -47,21 +47,30 @@ class themes extends module {
 		}
 		/* TODO: Only allow if user has Themes/Selection/<ANYTHING> available... */
 	}
+	
+	public static function get($filename) {
+	    global $db;
+	    if (!preg_match('/^(?<ID>\d+)-(?<NAME>.*)\.css/',$filename,$theme)) return false;
+	    $query = "SELECT STYLE FROM _THEMES WHERE ID = ? AND NAME RLIKE ?";
+	    $params = array(
+	        array("type" => "i", "value" => $theme['ID']),
+	        array("type" => "s", "value" => utilities::decode_url_safe($theme['NAME']))
+	    );
+	    $result = $db->run_query($query,$params);
+	    return count($result) ? $result[0]['STYLE']: false;
+	}
 
 	/* This file will output a stylesheet stored in the database.  Filename should be of the form <ID>-<THEME_NAME>.css */
 	protected static function get_stylesheet($filename) {
 		global $db;
-		if (!preg_match('/^(?<ID>\d+)-(?<NAME>.*)\.css/',$filename,$theme)) die(1);
-		$query = "SELECT STYLE FROM _THEMES WHERE ID = ? AND NAME RLIKE ?";
-		$params = array(
-			array("type" => "i", "value" => $theme['ID']),
-			array("type" => "s", "value" => utilities::decode_url_safe($theme['NAME']))
-		);
-		$result = $db->run_query($query,$params);
-		if (empty($result)) die(2);
-		header("Content-Type: text/css");
-		echo $result[0]['STYLE'];
-		exit;
+		$result = static::get($filename);
+		if ($result){
+		    header("Content-Type: text/css");
+		    echo $result;
+		    exit;
+		} else {
+		    die;
+		}		
 	}
 
 	public static function required_rights() {
@@ -163,7 +172,7 @@ class themes extends module {
 			layout::setup_page();
 			return;
 		}
-		$css = $theme['HAS_STYLESHEET'] ? array(static::get_module_url() . "css/{$theme['ID']}-".utilities::make_url_safe($theme['NAME']).".css") : array();
+		$css = $theme['HAS_STYLESHEET'] ? array(utilities::get_public_location(__DIR__ . "/css/{$theme['ID']}-".utilities::make_url_safe($theme['NAME']).".css")) : array();
 		call_user_func_array(
 			array($theme['CLASS_NAME'],'setup_page'),
 			array(

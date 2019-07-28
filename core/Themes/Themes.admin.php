@@ -36,6 +36,15 @@ class themes_admin extends themes {
 					array("type" => "i", "value" => $theme_id)
 				);
 				$db->run_query($query,$params);
+				
+				// wipe any theme files which begin with {ID}-...
+				$to_delete = array_filter(scandir(__DIR__ . '/css'), function($filename) use($theme_id){
+				    return explode('-',$filename)[0] == $theme_id;
+				});
+			    foreach($to_delete as $file){
+			        unlink(__DIR__ . "/css/$file");
+			    }
+
 			}
 			/* Check if right to set default theme... */
 			if ($s_user->check_right('Themes','Administration','Set Default Theme')) {

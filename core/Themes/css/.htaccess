@@ -1,0 +1,4 @@
+# If it's not a file or directory, run through WebBureau script
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ makeCSS.php?file=$1 [L,QSA]
