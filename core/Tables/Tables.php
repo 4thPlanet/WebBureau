@@ -844,7 +844,6 @@ class tables extends module {
 						$str_parts = array_merge($beforeArr,array(array("field" => "{$column['REFERENCED_TABLE_NAME']}.{$matches['fk_col']}")),$afterArr);
 						$joins[$column['COLUMN_NAME']] = array('table' => $column['REFERENCED_TABLE_NAME'], 'column' => $column['REFERENCED_COLUMN_NAME']);
 					}
-
 				}
 			}
 		}
@@ -1213,10 +1212,11 @@ class tables extends module {
 
 	protected static function decode_display($display,$columns,$data,$table_name) {
 		global $db,$s_user;
+		$data = utilities::make_html_safe($data);
 
 		// Search for %each < TABLE_NAME > < COLUMN_NAME > < ORDER_BY > < LIMIT? >%(text)%each%
 		if (preg_match_all('/%each\s(?<TABLE_NAME>\w[\w\d]+)\s+(?<COLUMN_NAME>\w[\w\d]+)(\s+(?<ORDER_BY>\w[\w\d]+)(\s+(?<LIMIT>\d+))?)?%(?<TEXT>.*)%each%/s',$display,$loop_data,PREG_SET_ORDER)) {
-			foreach($loop_data as $loop) {
+		    foreach($loop_data as $loop) {
 				if (
 					$s_user->check_right('Tables',$loop['TABLE_NAME'],'View') &&
 					static::table_has_column($loop['TABLE_NAME'],$loop['COLUMN_NAME'])
@@ -1225,7 +1225,10 @@ class tables extends module {
 					// Get foreign key details on $loop['COLUMN_NAME']
 					$loop['COLUMNS'] = static::get_table_columns($loop['TABLE_NAME']);
 					$columns_by_name = utilities::group_numeric_by_key($loop['COLUMNS'],'COLUMN_NAME');
-					if ($columns_by_name[$loop['COLUMN_NAME']]['REFERENCED_TABLE_NAME'] != $table_name) break;	// wrong key
+					
+					if ($columns_by_name[$loop['COLUMN_NAME']]['REFERENCED_TABLE_NAME'] != $table_name 
+					    && $loop['TABLE_NAME'] !== 'UPCOMING'
+					    ) break;	// wrong key
 
 					$order_by_sql = (empty($loop['ORDER_BY']) || static::table_has_column($loop['TABLE_NAME'],$loop['ORDER_BY'])) ? "" : "ORDER BY {$loop['ORDER_BY']}";
 					$limit_sql = empty($loop['LIMIT']) ? "" : "LIMIT {$loop['LIMIT']}";
@@ -1238,8 +1241,9 @@ class tables extends module {
 						{$limit_sql}
 					";
 					$params = array(
-						array("type" => "s", "value" => $data[$columns_by_name[$loop['COLUMN_NAME']]['REFERENCED_COLUMN_NAME']])
+						array("type" => "s", "value" => $data[$columns_by_name[$loop['COLUMN_NAME']]['REFERENCED_COLUMN_NAME']]  ?: $data['ID'])
 					);
+					
 					$loop['data'] = $db->run_query($query,$params);
 					$loop['text_all'] = "";
 					if (!empty($data)) {
