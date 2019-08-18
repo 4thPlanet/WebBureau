@@ -1226,9 +1226,7 @@ class tables extends module {
 					$loop['COLUMNS'] = static::get_table_columns($loop['TABLE_NAME']);
 					$columns_by_name = utilities::group_numeric_by_key($loop['COLUMNS'],'COLUMN_NAME');
 					
-					if ($columns_by_name[$loop['COLUMN_NAME']]['REFERENCED_TABLE_NAME'] != $table_name 
-					    && $loop['TABLE_NAME'] !== 'UPCOMING'
-					    ) break;	// wrong key
+					if ($columns_by_name[$loop['COLUMN_NAME']]['REFERENCED_TABLE_NAME'] != $table_name ) break;	// wrong key
 
 					$order_by_sql = (empty($loop['ORDER_BY']) || static::table_has_column($loop['TABLE_NAME'],$loop['ORDER_BY'])) ? "" : "ORDER BY {$loop['ORDER_BY']}";
 					$limit_sql = empty($loop['LIMIT']) ? "" : "LIMIT {$loop['LIMIT']}";
